@@ -1,0 +1,16 @@
+{
+  "name": "comic-downloader-backend",
+  "version": "1.0.0",
+  "description": "Comic scraping backend for batcave.biz",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --max-old-space-size=4096 src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "puppeteer": "^21.6.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
