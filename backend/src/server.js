@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { scrapeComic } = require('./scrape');
 const { scrapeChapter } = require('./scrape-chapter');
+const { isAllowedUrl } = require('./config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,10 @@ app.post('/api/scrape', async (req, res) => {
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
+  }
+
+  if (!isAllowedUrl(url)) {
+    return res.status(400).json({ error: 'Please provide a valid comic URL' });
   }
 
   // Rate limiting
@@ -76,6 +81,10 @@ app.post('/api/scrape-chapter', async (req, res) => {
 
   if (!chapterUrl) {
     return res.status(400).json({ error: 'Chapter URL is required' });
+  }
+
+  if (!isAllowedUrl(chapterUrl)) {
+    return res.status(400).json({ error: 'Please provide a valid chapter URL' });
   }
 
   const jobId = Date.now().toString();
