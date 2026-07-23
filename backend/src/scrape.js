@@ -41,14 +41,18 @@ async function findReaderUrl(page) {
 
 async function scrapeComic(url) {
   const chromePath = findChromePath();
-  const cacheDir = process.env.PUPPETEER_CACHE_DIR || require('path').join(__dirname, '..', 'node_modules', '.puppeteer');
   console.log('[scrape] Using Chrome path:', chromePath || 'default Puppeteer path');
-  console.log('[scrape] Using Puppeteer cache dir:', cacheDir);
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: chromePath,
-    cacheDir: cacheDir,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+    ],
     ignoreDefaultArgs: ['--enable-automation'],
   });
 

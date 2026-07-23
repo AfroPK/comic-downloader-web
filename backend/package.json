@@ -4,8 +4,7 @@
   "description": "Comic scraping backend for batcave.biz",
   "main": "src/server.js",
   "scripts": {
-    "start": "node --max-old-space-size=4096 src/server.js",
-    "postinstall": "npx puppeteer browsers install chrome"
+    "start": "node --max-old-space-size=4096 src/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
