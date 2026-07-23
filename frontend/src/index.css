@@ -310,15 +310,15 @@ h1 {
   color: #FAFAFA;
   margin-bottom: 1rem;
   min-height: 2rem;
-  overflow: hidden;
-  white-space: nowrap;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .one-liner span {
   display: inline-block;
-  padding-left: 100%;
-  animation: scrollWobble 12s linear infinite;
+  animation: wave 1.2s ease-in-out infinite;
 }
 
 .progress-percent {
@@ -328,63 +328,66 @@ h1 {
   margin-top: 0.75rem;
 }
 
-.wobbly-text {
-  animation: textWobble 0.6s ease-in-out infinite;
-}
-
-@keyframes textWobble {
+@keyframes wave {
   0%, 100% {
-    transform: skewX(0deg);
-  }
-  20% {
-    transform: skewX(-2deg);
-  }
-  40% {
-    transform: skewX(2deg);
-  }
-  60% {
-    transform: skewX(-1deg);
-  }
-  80% {
-    transform: skewX(1deg);
-  }
-}
-
-@keyframes scrollWobble {
-  0% {
-    transform: translateX(0) skewX(0deg);
-  }
-  10% {
-    transform: translateX(-10%) skewX(-2deg);
-  }
-  20% {
-    transform: translateX(-20%) skewX(2deg);
-  }
-  30% {
-    transform: translateX(-30%) skewX(-1deg);
-  }
-  40% {
-    transform: translateX(-40%) skewX(1deg);
+    transform: translateY(0);
   }
   50% {
-    transform: translateX(-50%) skewX(0deg);
-  }
-  60% {
-    transform: translateX(-60%) skewX(-1deg);
-  }
-  70% {
-    transform: translateX(-70%) skewX(1deg);
-  }
-  80% {
-    transform: translateX(-80%) skewX(-2deg);
-  }
-  90% {
-    transform: translateX(-90%) skewX(2deg);
-  }
-  100% {
-    transform: translateX(-100%) skewX(0deg);
+    transform: translateY(-8px);
   }
 }
+
+/* Wave delay for each letter */
+.one-liner span:nth-child(1) { animation-delay: 0s; }
+.one-liner span:nth-child(2) { animation-delay: 0.05s; }
+.one-liner span:nth-child(3) { animation-delay: 0.1s; }
+.one-liner span:nth-child(4) { animation-delay: 0.15s; }
+.one-liner span:nth-child(5) { animation-delay: 0.2s; }
+.one-liner span:nth-child(6) { animation-delay: 0.25s; }
+.one-liner span:nth-child(7) { animation-delay: 0.3s; }
+.one-liner span:nth-child(8) { animation-delay: 0.35s; }
+.one-liner span:nth-child(9) { animation-delay: 0.4s; }
+.one-liner span:nth-child(10) { animation-delay: 0.45s; }
+.one-liner span:nth-child(11) { animation-delay: 0.5s; }
+.one-liner span:nth-child(12) { animation-delay: 0.55s; }
+.one-liner span:nth-child(13) { animation-delay: 0.6s; }
+.one-liner span:nth-child(14) { animation-delay: 0.65s; }
+.one-liner span:nth-child(15) { animation-delay: 0.7s; }
+.one-liner span:nth-child(16) { animation-delay: 0.75s; }
+.one-liner span:nth-child(17) { animation-delay: 0.8s; }
+.one-liner span:nth-child(18) { animation-delay: 0.85s; }
+.one-liner span:nth-child(19) { animation-delay: 0.9s; }
+.one-liner span:nth-child(20) { animation-delay: 0.95s; }
+.one-liner span:nth-child(21) { animation-delay: 1s; }
+.one-liner span:nth-child(22) { animation-delay: 1.05s; }
+.one-liner span:nth-child(23) { animation-delay: 1.1s; }
+.one-liner span:nth-child(24) { animation-delay: 1.15s; }
+.one-liner span:nth-child(25) { animation-delay: 1.2s; }
+.one-liner span:nth-child(26) { animation-delay: 1.25s; }
+.one-liner span:nth-child(27) { animation-delay: 1.3s; }
+.one-liner span:nth-child(28) { animation-delay: 1.35s; }
+.one-liner span:nth-child(29) { animation-delay: 1.4s; }
+.one-liner span:nth-child(30) { animation-delay: 1.45s; }
+.one-liner span:nth-child(31) { animation-delay: 1.5s; }
+.one-liner span:nth-child(32) { animation-delay: 1.55s; }
+.one-liner span:nth-child(33) { animation-delay: 1.6s; }
+.one-liner span:nth-child(34) { animation-delay: 1.65s; }
+.one-liner span:nth-child(35) { animation-delay: 1.7s; }
+.one-liner span:nth-child(36) { animation-delay: 1.75s; }
+.one-liner span:nth-child(37) { animation-delay: 1.8s; }
+.one-liner span:nth-child(38) { animation-delay: 1.85s; }
+.one-liner span:nth-child(39) { animation-delay: 1.9s; }
+.one-liner span:nth-child(40) { animation-delay: 1.95s; }
+.one-liner span:nth-child(41) { animation-delay: 2s; }
+.one-liner span:nth-child(42) { animation-delay: 2.05s; }
+.one-liner span:nth-child(43) { animation-delay: 2.1s; }
+.one-liner span:nth-child(44) { animation-delay: 2.15s; }
+.one-liner span:nth-child(45) { animation-delay: 2.2s; }
+.one-liner span:nth-child(46) { animation-delay: 2.25s; }
+.one-liner span:nth-child(47) { animation-delay: 2.3s; }
+.one-liner span:nth-child(48) { animation-delay: 2.35s; }
+.one-liner span:nth-child(49) { animation-delay: 2.4s; }
+.one-liner span:nth-child(50) { animation-delay: 2.45s; }
 
 /* Cards */
 .info-card {

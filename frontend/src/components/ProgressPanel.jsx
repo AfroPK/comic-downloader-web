@@ -100,11 +100,13 @@ function ProgressPanel({ progress }) {
     return () => clearInterval(interval);
   }, []);
 
+  const waveText = ONE_LINERS[index].split('').map((char, i) => (
+    <span key={i}>{char === ' ' ? '\u00A0' : char}</span>
+  ));
+
   return (
     <div className="info-card progress-panel">
-      <p className="one-liner">
-        <span className="wobbly-text">{ONE_LINERS[index]}</span>
-      </p>
+      <p className="one-liner">{waveText}</p>
       <div className="progress-bar">
         <div style={{ width: `${roundedProgress}%` }} className="progress-fill" />
       </div>
