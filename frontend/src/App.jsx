@@ -27,21 +27,18 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="header-content">
-          <h1>Comic Downloader</h1>
-        </div>
-      </header>
-
       <main className="app-main">
         <div className="content-grid">
           <div className="search-section">
-            <UrlInput
-              url={url}
-              setUrl={setUrl}
-              onScrape={handleScrape}
-              isLoading={status === 'scraping'}
-            />
+            <div className="search-content">
+              <h1 className="search-title">Comic Downloader</h1>
+              <UrlInput
+                url={url}
+                setUrl={setUrl}
+                onScrape={handleScrape}
+                isLoading={status === 'scraping'}
+              />
+            </div>
           </div>
 
           {status === 'scraping' && (

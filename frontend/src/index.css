@@ -29,13 +29,28 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 60vh;
+  min-height: 70vh;
   padding: 2rem;
 }
 
-.search-section .input-section {
+.search-content {
   width: 100%;
   max-width: 700px;
+  text-align: center;
+}
+
+.search-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.search-content .input-section {
+  width: 100%;
 }
 
 /* Header */
