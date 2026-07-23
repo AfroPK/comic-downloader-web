@@ -45,10 +45,7 @@ function App() {
       <main className="app-main">
         <div className="content-grid">
           {status === 'scraping' && (
-            <ProgressPanel
-              progress={progress}
-              message="Entering void..."
-            />
+            <ProgressPanel progress={progress} />
           )}
 
           {error && (
