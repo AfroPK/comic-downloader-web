@@ -103,48 +103,44 @@ async function scrapeChapter(chapterUrl) {
   console.log(`[scrape-chapter] Found ${chapterData.images.length} images`);
   console.log('[scrape-chapter] First image URL:', chapterData.images[0]);
 
-  // Collect images by fetching them directly via page.evaluate
+  // Collect images by fetching them server-side with proper headers
   const base64Images = [];
   const failedImages = [];
+
+  // Get cookies from the page to use for image requests
+  const cookies = await page.cookies();
+  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
   for (let i = 0; i < chapterData.images.length; i++) {
     const imgUrl = chapterData.images[i];
     try {
-      // Try to fetch image through the browser context (uses existing cookies/session)
-      const result = await page.evaluate(async (url) => {
-        try {
-          const response = await fetch(url, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-              'Referer': window.location.href,
-            },
-          });
-          if (!response.ok) {
-            return { ok: false, status: response.status };
-          }
-          const blob = await response.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-          return {
-            ok: true,
-            base64,
-            contentType: response.headers.get('content-type') || 'image/jpeg',
-          };
-        } catch (err) {
-          return { ok: false, error: err.message };
-        }
-      }, imgUrl);
+      const response = await fetch(imgUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Referer': 'https://batcave.biz/reader/33051/233702',
+          'Cookie': cookieHeader,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        },
+      });
 
-      if (result.ok) {
-        const ct = (result.contentType || 'image/jpeg').split(';')[0];
-        base64Images.push(`data:${ct};base64,${result.base64}`);
-        console.log(`[scrape-chapter] Fetched image ${i + 1}/${chapterData.images.length}`);
-      } else {
-        console.error(`[scrape-chapter] Failed to fetch image ${i + 1}:`, result.status || result.error);
+      if (!response.ok) {
+        console.error(`[scrape-chapter] Failed to fetch image ${i + 1}: HTTP ${response.status}`);
         failedImages.push(imgUrl);
+        continue;
       }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length < 100) {
+        console.error(`[scrape-chapter] Image ${i + 1} too small`);
+        failedImages.push(imgUrl);
+        continue;
+      }
+
+      const ct = (response.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      const b64 = buffer.toString('base64');
+      base64Images.push(`data:${ct};base64,${b64}`);
+      console.log(`[scrape-chapter] Fetched image ${i + 1}/${chapterData.images.length} (${buffer.length} bytes)`);
     } catch (err) {
       console.error(`[scrape-chapter] Error fetching image ${i + 1}:`, err.message);
       failedImages.push(imgUrl);
