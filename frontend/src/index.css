@@ -25,6 +25,19 @@ body {
   min-height: 100vh;
 }
 
+.search-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 2rem;
+}
+
+.search-section .input-section {
+  width: 100%;
+  max-width: 700px;
+}
+
 /* Header */
 .app-header {
   position: sticky;

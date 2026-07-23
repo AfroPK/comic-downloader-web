@@ -30,17 +30,19 @@ function App() {
       <header className="app-header">
         <div className="header-content">
           <h1>Comic Downloader</h1>
-          <UrlInput
-            url={url}
-            setUrl={setUrl}
-            onScrape={handleScrape}
-            isLoading={status === 'scraping'}
-          />
         </div>
       </header>
 
       <main className="app-main">
         <div className="content-grid">
+          <div className="search-section">
+            <UrlInput
+              url={url}
+              setUrl={setUrl}
+              onScrape={handleScrape}
+              isLoading={status === 'scraping'}
+            />
+          </div>
 
           {status === 'scraping' && (
             <ProgressPanel
