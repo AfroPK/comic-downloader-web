@@ -1,7 +1,7 @@
 function FullDownloadSection({ comicTitle, chapters, onDownloadFull, isDownloading }) {
   return (
     <div className="info-card full-download-section">
-      <h2>Download Full Comic</h2>
+      <h2>Download All Chapters</h2>
       <p>{chapters.length} chapters</p>
       <button
         className="btn btn-warning"
@@ -15,7 +15,7 @@ function FullDownloadSection({ comicTitle, chapters, onDownloadFull, isDownloadi
             Downloading...
           </>
         ) : (
-          'Download Full Comic'
+          'Download'
         )}
       </button>
     </div>
