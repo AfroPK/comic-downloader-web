@@ -53,10 +53,7 @@ async function scrapeComic(url) {
 
   console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
   console.log('[scrape] PROXY_HOST env:', process.env.PROXY_HOST || 'not set');
-  console.log('[scrape] PROXY_USERNAME env:', process.env.PROXY_USERNAME ? 'set' : 'not set');
-  console.log('[scrape] PROXY_PASSWORD env:', process.env.PROXY_PASSWORD ? 'set' : 'not set');
 
-  // Build Puppeteer launch args
   const args = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
@@ -66,8 +63,6 @@ async function scrapeComic(url) {
     '--disable-blink-features=AutomationControlled',
   ];
 
-  // Add proxy if configured via environment variables
-  // Format: PROXY_HOST=host:port, PROXY_USERNAME=user, PROXY_PASSWORD=pass
   const proxyHost = process.env.PROXY_HOST;
   if (proxyHost) {
     args.push(`--proxy-server=${proxyHost}`);
@@ -84,7 +79,6 @@ async function scrapeComic(url) {
 
   const page = await browser.newPage();
 
-  // Authenticate proxy if credentials provided
   const proxyUsername = process.env.PROXY_USERNAME;
   const proxyPassword = process.env.PROXY_PASSWORD;
   if (proxyHost && proxyUsername && proxyPassword) {
@@ -96,40 +90,32 @@ async function scrapeComic(url) {
   await page.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   );
-
-  // Intercept API responses to find chapter data
-  let apiData = null;
-  page.on('response', async (response) => {
-    const respUrl = response.url();
-    if (respUrl.includes('api') || respUrl.includes('reader') || respUrl.includes('chapter')) {
-      try {
-        const contentType = response.headers()['content-type'] || '';
-        if (contentType.includes('application/json')) {
-          const json = await response.json();
-          if (json && (json.chapters || json.data)) {
-            apiData = json;
-            console.log('[scrape] Found API data from:', respUrl);
-          }
-        }
-      } catch (e) {}
-    }
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Referer': 'https://batcave.biz/',
   });
 
-  // Go directly to reader URL
-  const readerUrl = `https://batcave.biz/reader/${comicId}`;
-  console.log(`[scrape] Loading reader URL directly: ${readerUrl}`);
-
+  // Step 1: Visit homepage to establish session/cookies
+  console.log('[scrape] Visiting homepage to establish session...');
   try {
-    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto('https://batcave.biz/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.waitForTimeout(3000);
   } catch (e) {
-    console.log('[scrape] Reader page goto timed out, continuing anyway');
+    console.log('[scrape] Homepage visit timed out, continuing');
   }
 
+  // Step 2: Navigate to comic detail page
+  console.log('[scrape] Loading comic detail page...');
+  try {
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+  } catch (e) {
+    console.log('[scrape] Detail page goto timed out, continuing anyway');
+  }
   await page.waitForTimeout(5000);
 
-  // Debug: log page info
-  const pageUrl = page.url();
-  console.log('[scrape] Current page URL:', pageUrl);
+  const detailUrl = page.url();
+  console.log('[scrape] Detail page URL:', detailUrl);
 
   let comicTitle = 'Unknown Comic';
   try {
@@ -137,29 +123,31 @@ async function scrapeComic(url) {
     console.log('[scrape] Page title:', comicTitle);
   } catch (e) {}
 
-  // Try to get data from multiple sources
-  let data = await page.evaluate(() => window.__DATA__ || null);
+  // Step 3: Try to find reader link, or construct it
+  let readerUrl = `https://batcave.biz/reader/${comicId}`;
+  try {
+    const foundReader = await page.evaluate(() => {
+      const el = document.querySelector('a[href*="/reader/"]');
+      return el ? el.href : null;
+    });
+    if (foundReader) readerUrl = foundReader;
+  } catch (e) {}
 
-  if (!data && apiData) {
-    data = apiData.data || apiData;
-  }
+  console.log('[scrape] Reader URL:', readerUrl);
 
-  // Try to extract from script tags
-  if (!data) {
-    try {
-      const scriptData = await page.evaluate(() => {
-        const scripts = document.querySelectorAll('script');
-        for (const script of scripts) {
-          const text = script.textContent || '';
-          if (text.includes('__DATA__') || text.includes('chapters')) {
-            return text.substring(0, 500);
-          }
-        }
-        return null;
-      });
-      console.log('[scrape] Script data sample:', scriptData);
-    } catch (e) {}
+  // Step 4: Load reader page
+  console.log('[scrape] Loading reader page...');
+  try {
+    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+  } catch (e) {
+    console.log('[scrape] Reader page goto timed out, continuing anyway');
   }
+  await page.waitForTimeout(5000);
+
+  const readerPageUrl = page.url();
+  console.log('[scrape] Reader page URL:', readerPageUrl);
+
+  const data = await page.evaluate(() => window.__DATA__ || null);
 
   if (!data) {
     console.log('[scrape] No window.__DATA__ found');
