@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
 puppeteer.use(StealthPlugin);
 
-// Use system Chromium if available (Docker), otherwise fall back to Puppeteer's cache
 const path = require('path');
 const fs = require('fs');
 
@@ -22,34 +21,71 @@ const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../nod
 
 async function scrapeChapter(chapterUrl) {
   console.log('[scrape-chapter] Using Chrome path:', executablePath || 'default Puppeteer path');
+
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--single-process',
+    '--no-zygote',
+    '--disable-blink-features=AutomationControlled',
+  ];
+
+  const proxyHost = process.env.PROXY_HOST;
+  if (proxyHost) {
+    args.push(`--proxy-server=${proxyHost}`);
+    console.log(`[scrape-chapter] Using proxy: ${proxyHost}`);
+  }
+
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
     cacheDir: cacheDir,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--single-process',
-      '--no-zygote',
-    ],
+    args: args,
+    ignoreDefaultArgs: ['--enable-automation'],
   });
 
   const page = await browser.newPage();
+
+  const proxyUsername = process.env.PROXY_USERNAME;
+  const proxyPassword = process.env.PROXY_PASSWORD;
+  if (proxyHost && proxyUsername && proxyPassword) {
+    await page.authenticate({ username: proxyUsername, password: proxyPassword });
+    console.log('[scrape-chapter] Proxy authentication configured');
+  }
+
+  await page.setViewport({ width: 1920, height: 1080 });
   await page.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   );
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Referer': 'https://batcave.biz/',
+  });
 
   console.log(`[scrape-chapter] Loading ${chapterUrl}`);
 
-  // Visit batcave.biz first to establish cookies (clear anti-bot challenge)
-  await page.goto('https://batcave.biz/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
+  // Visit batcave.biz first to establish cookies
+  try {
+    await page.goto('https://batcave.biz/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.waitForTimeout(3000);
+  } catch (e) {
+    console.log('[scrape-chapter] Homepage visit timed out, continuing');
+  }
 
   // Navigate to chapter
-  await page.goto(chapterUrl, { waitUntil: 'networkidle0', timeout: 60000 });
+  try {
+    await page.goto(chapterUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+  } catch (e) {
+    console.log('[scrape-chapter] Chapter page goto timed out, continuing anyway');
+  }
+  await page.waitForTimeout(5000);
 
   const chapterData = await page.evaluate(() => window.__DATA__ || null);
+  console.log('[scrape-chapter] Current page URL:', page.url());
+  console.log('[scrape-chapter] window.__DATA__:', chapterData ? 'found' : 'not found');
+
   if (!chapterData || !Array.isArray(chapterData.images)) {
     await browser.close();
     throw new Error('No images found for this chapter');
