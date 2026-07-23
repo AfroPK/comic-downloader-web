@@ -14,6 +14,7 @@ function findChromePath() {
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux/chrome',
+    require('path').join(__dirname, '..', 'node_modules', '.puppeteer', 'chrome', 'linux-121.0.6167.85', 'chrome-linux', 'chrome'),
   ];
 
   const fs = require('fs');
