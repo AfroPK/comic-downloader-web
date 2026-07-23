@@ -4,9 +4,6 @@ import { saveAs } from 'file-saver';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
-/**
- * Convert a data URL (data:image/jpeg;base64,...) to a Blob.
- */
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(',');
   const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -16,6 +13,27 @@ function dataUrlToBlob(dataUrl) {
     bytes[i] = binary.charCodeAt(i);
   }
   return new Blob([bytes], { type: mime });
+}
+
+async function pollJob(jobId, endpoint) {
+  return new Promise((resolve, reject) => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}/${jobId}`);
+        const data = await res.json();
+        if (data.status === 'done') {
+          resolve(data.result);
+        } else if (data.status === 'error') {
+          reject(new Error(data.error));
+        } else {
+          setTimeout(check, 2000);
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    check();
+  });
 }
 
 function useScrape() {
@@ -33,12 +51,8 @@ function useScrape() {
     setComicTitle('');
     setProgress(0);
 
-    // Simulate progress while waiting for backend
     const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) return 90; // Cap at 90% until complete
-        return prev + Math.random() * 15;
-      });
+      setProgress(prev => (prev >= 90 ? 90 : prev + Math.random() * 15));
     }, 500);
 
     try {
@@ -48,128 +62,120 @@ function useScrape() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Scraping failed');
+      }
+
+      const { jobId } = await response.json();
+      const result = await pollJob(jobId, '/scrape');
 
       clearInterval(progressInterval);
-
-      if (data.status === 'done') {
-        setComicTitle(data.comicTitle);
-        setChapters(data.chapters);
-        setStatus('done');
-        setProgress(100);
-      } else if (data.status === 'error') {
-        setError(data.error);
-        setStatus('error');
-      }
+      setComicTitle(result.comicTitle);
+      setChapters(result.chapters);
+      setProgress(100);
+      setStatus('done');
     } catch (err) {
       clearInterval(progressInterval);
-      setError(`Failed to connect: ${err.message}`);
+      setError(err.message);
       setStatus('error');
     }
   }, []);
 
-  const downloadChapter = useCallback(async (chapterIndex) => {
-    const chapter = chapters[chapterIndex];
-    if (!chapter) return;
-
+  const downloadChapter = useCallback(async (chapterUrl, index) => {
     setStatus('downloading');
-    setDownloadingChapterIndex(chapterIndex);
-    setProgress(0);
+    setDownloadingChapterIndex(index);
+    setError('');
 
     try {
-      // Fetch chapter images from the backend
       const response = await fetch(`${API_BASE}/scrape-chapter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapterUrl: chapter.url }),
+        body: JSON.stringify({ chapterUrl }),
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error('Failed to start chapter download');
+      }
 
-      if (data.status !== 'done' || !data.images || data.images.length === 0) {
+      const { jobId } = await response.json();
+      const result = await pollJob(jobId, '/scrape-chapter');
+
+      if (!result.images || result.images.length === 0) {
         throw new Error('No images received for this chapter');
       }
 
       const zip = new JSZip();
-      const folderName = chapter.title.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const folder = zip.folder(folderName);
-
-      for (let i = 0; i < data.images.length; i++) {
-        const imgDataUrl = data.images[i];
-        setProgress(Math.round(((i + 1) / data.images.length) * 100));
-
+      for (let i = 0; i < result.images.length; i++) {
+        const imgDataUrl = result.images[i];
         const blob = dataUrlToBlob(imgDataUrl);
         const ext = blob.type.split('/')[1] || 'jpg';
-        const num = String(i + 1).padStart(4, '0');
-        folder.file(`${num}.${ext}`, blob);
+        zip.file(`page_${String(i + 1).padStart(3, '0')}.${ext}`, blob);
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
-      const fileName = `${comicTitle}_${folderName}.cbz`;
-      saveAs(content, fileName);
+      const chapterName = chapterUrl.split('/').pop() || 'chapter';
+      saveAs(content, `chapter_${chapterName}.cbz`);
 
       setStatus('done');
-      setProgress(100);
+      setDownloadingChapterIndex(null);
     } catch (err) {
       setError(`Download failed: ${err.message}`);
       setStatus('error');
-    } finally {
       setDownloadingChapterIndex(null);
     }
-  }, [chapters, comicTitle]);
+  }, []);
 
   const downloadFullComic = useCallback(async () => {
-    if (chapters.length === 0) return;
-
     setStatus('downloading');
-    setDownloadingChapterIndex(null);
-    setProgress(0);
+    setError('');
 
     try {
       const zip = new JSZip();
-      let processedChapters = 0;
+      const comicFolder = zip.folder(comicTitle.replace(/[^a-zA-Z0-9_-]/g, '_'));
 
-      for (let ci = 0; ci < chapters.length; ci++) {
-        const chapter = chapters[ci];
-        
-        // Fetch chapter images from the backend
+      for (let i = 0; i < chapters.length; i++) {
+        const chapter = chapters[i];
+        setDownloadingChapterIndex(i);
+
         const response = await fetch(`${API_BASE}/scrape-chapter`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chapterUrl: chapter.url }),
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+          console.warn(`Skipping chapter ${chapter.title} - request failed`);
+          continue;
+        }
 
-        if (data.status !== 'done' || !data.images || data.images.length === 0) {
+        const { jobId } = await response.json();
+        const data = await pollJob(jobId, '/scrape-chapter');
+
+        if (!data.images || data.images.length === 0) {
           console.warn(`Skipping chapter ${chapter.title} - no images`);
           continue;
         }
 
         const folderName = chapter.title.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const folder = zip.folder(folderName);
-
-        for (let i = 0; i < data.images.length; i++) {
-          const imgDataUrl = data.images[i];
+        const folder = comicFolder.folder(folderName);
+        for (let j = 0; j < data.images.length; j++) {
+          const imgDataUrl = data.images[j];
           const blob = dataUrlToBlob(imgDataUrl);
           const ext = blob.type.split('/')[1] || 'jpg';
-          const num = String(i + 1).padStart(4, '0');
-          folder.file(`${num}.${ext}`, blob);
+          folder.file(`page_${String(j + 1).padStart(3, '0')}.${ext}`, blob);
         }
-
-        processedChapters++;
-        setProgress(Math.round((processedChapters / chapters.length) * 100));
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
-      const fileName = `${comicTitle}.cbz`;
-      saveAs(content, fileName);
+      saveAs(content, `${comicTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}.cbz`);
 
       setStatus('done');
-      setProgress(100);
+      setDownloadingChapterIndex(null);
     } catch (err) {
       setError(`Download failed: ${err.message}`);
       setStatus('error');
+      setDownloadingChapterIndex(null);
     }
   }, [chapters, comicTitle]);
 
