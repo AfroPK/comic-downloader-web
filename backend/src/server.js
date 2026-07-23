@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const { scrapeComic } = require('./scrape');
-const { scrapeChapter } = require('./scrape-chapter');
+const { scrapeComic: scrapeComicGeneric } = require('./scrape');
+const { scrapeChapter: scrapeChapterGeneric } = require('./scrape-chapter');
+const { scrapeComic: scrapeComicXoxo, scrapeChapter: scrapeChapterXoxo } = require('./scrapers/xoxocomic');
 const { isAllowedUrl } = require('./config');
 
 const app = express();
@@ -22,6 +23,14 @@ app.use(express.json({ limit: '50mb' }));
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
+
+// Determine which scraper to use based on URL
+function getScraper(url) {
+  if (url.includes('xoxocomic.com')) {
+    return { scrapeComic: scrapeComicXoxo, scrapeChapter: scrapeChapterXoxo };
+  }
+  return { scrapeComic: scrapeComicGeneric, scrapeChapter: scrapeChapterGeneric };
+}
 
 // Start scrape job
 app.post('/api/scrape', async (req, res) => {
@@ -56,8 +65,9 @@ app.post('/api/scrape', async (req, res) => {
   // Respond immediately with job ID
   res.json({ status: 'pending', jobId });
 
-  // Run scrape in background
+  // Run scrape in background with appropriate scraper
   try {
+    const { scrapeComic } = getScraper(url);
     const result = await scrapeComic(url);
     jobs.set(jobId, { status: 'done', result, error: null });
   } catch (err) {
@@ -93,6 +103,7 @@ app.post('/api/scrape-chapter', async (req, res) => {
   res.json({ status: 'pending', jobId });
 
   try {
+    const { scrapeChapter } = getScraper(chapterUrl);
     const result = await scrapeChapter(chapterUrl);
     jobs.set(jobId, { status: 'done', result, error: null });
   } catch (err) {
