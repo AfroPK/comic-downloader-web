@@ -17,9 +17,10 @@ async function findReaderUrl(page) {
 }
 
 async function scrapeComic(url) {
+  const chromePath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
   const browser = await puppeteer.launch({
     headless: 'new',
-    executablePath: process.env.CHROME_PATH || undefined,
+    executablePath: chromePath,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
   });
 

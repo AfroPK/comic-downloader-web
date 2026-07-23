@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node --max-old-space-size=4096 src/server.js",
-    "postinstall": "npx puppeteer browsers install chromium"
+    "postinstall": "node scripts/postinstall.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
