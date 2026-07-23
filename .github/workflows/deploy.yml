@@ -32,7 +32,7 @@ jobs:
         run: |
           cd frontend
           rm -rf node_modules package-lock.json
-          npm install
+          npm install --force
 
       - name: Build frontend
         run: |
