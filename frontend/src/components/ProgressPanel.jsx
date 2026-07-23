@@ -102,7 +102,9 @@ function ProgressPanel({ progress }) {
 
   return (
     <div className="info-card progress-panel">
-      <p className="one-liner wobbly-text">{ONE_LINERS[index]}</p>
+      <p className="one-liner">
+        <span className="wobbly-text">{ONE_LINERS[index]}</span>
+      </p>
       <div className="progress-bar">
         <div style={{ width: `${roundedProgress}%` }} className="progress-fill" />
       </div>
