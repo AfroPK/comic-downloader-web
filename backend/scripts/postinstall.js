@@ -2,7 +2,6 @@
 
 // This script ensures Chrome/Chromium is installed for Puppeteer
 // It's specifically designed to work in Render's environment
-// If installation fails, it continues anyway so the build doesn't fail
 
 const { execSync } = require('child_process');
 const fs = require('fs');
