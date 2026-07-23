@@ -80,9 +80,18 @@ async function scrapeChapter(chapterUrl) {
   } catch (e) {
     console.log('[scrape-chapter] Chapter page goto timed out, continuing anyway');
   }
-  await page.waitForTimeout(5000);
 
-  const chapterData = await page.evaluate(() => window.__DATA__ || null);
+  // Poll for window.__DATA__ to appear
+  let chapterData = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await page.waitForTimeout(2000);
+    chapterData = await page.evaluate(() => window.__DATA__ || null);
+    if (chapterData && Array.isArray(chapterData.images)) {
+      console.log(`[scrape-chapter] window.__DATA__ found after ${attempt + 1} attempts`);
+      break;
+    }
+  }
+
   console.log('[scrape-chapter] Current page URL:', page.url());
   console.log('[scrape-chapter] window.__DATA__:', chapterData ? 'found' : 'not found');
 
