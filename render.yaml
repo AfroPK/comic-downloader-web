@@ -11,6 +11,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_CACHE_DIR
-        value: ./node_modules/.cache/puppeteer
+        value: /opt/render/project/go/src/github.com/AfroPK/comic-downloader-web/backend/node_modules/.cache/puppeteer
     healthCheck:
       path: /api/health

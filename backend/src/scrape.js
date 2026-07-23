@@ -4,7 +4,7 @@ puppeteer.use(StealthPlugin);
 
 // Explicit cache directory inside node_modules so Render preserves it
 const path = require('path');
-const cacheDir = path.join(__dirname, './node_modules/.cache/puppeteer');
+const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../node_modules/.cache/puppeteer');
 
 function extractComicId(url) {
   const match = url.match(/\/(\d+)-/);
