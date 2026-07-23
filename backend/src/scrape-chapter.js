@@ -92,60 +92,59 @@ async function scrapeChapter(chapterUrl) {
   }
 
   console.log(`[scrape-chapter] Found ${chapterData.images.length} images`);
+  console.log('[scrape-chapter] First image URL:', chapterData.images[0]);
 
-  const imageBuffers = new Map();
-  const contentTypeMap = new Map();
+  // Collect images by fetching them directly via page.evaluate
+  const base64Images = [];
+  const failedImages = [];
 
-  const onResponse = async (response) => {
-    const respUrl = response.url();
-    if (respUrl.startsWith('https://img.batcave.biz/img/') && respUrl.endsWith('.jpg')) {
-      try {
-        const buffer = await response.buffer();
-        if (buffer.length > 100) {
-          imageBuffers.set(respUrl, buffer);
-          contentTypeMap.set(respUrl, response.headers()['content-type'] || 'image/jpeg');
+  for (let i = 0; i < chapterData.images.length; i++) {
+    const imgUrl = chapterData.images[i];
+    try {
+      // Try to fetch image through the browser context (uses existing cookies/session)
+      const result = await page.evaluate(async (url) => {
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Referer': window.location.href,
+            },
+          });
+          if (!response.ok) {
+            return { ok: false, status: response.status };
+          }
+          const blob = await response.blob();
+          const arrayBuffer = await blob.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          return {
+            ok: true,
+            base64,
+            contentType: response.headers.get('content-type') || 'image/jpeg',
+          };
+        } catch (err) {
+          return { ok: false, error: err.message };
         }
-      } catch (e) {}
-    }
-  };
+      }, imgUrl);
 
-  page.on('response', onResponse);
-
-  // Force lazy images to load
-  await page.evaluate((imageUrls) => {
-    const imgs = document.querySelectorAll('img.reader__item');
-    imageUrls.forEach((src) => {
-      for (let j = 0; j < imgs.length; j++) {
-        const cur = imgs[j].getAttribute('src');
-        if (!cur || cur.includes('loading.gif')) {
-          imgs[j].setAttribute('src', src);
-          imgs[j].removeAttribute('loading');
-          break;
-        }
+      if (result.ok) {
+        const ct = (result.contentType || 'image/jpeg').split(';')[0];
+        base64Images.push(`data:${ct};base64,${result.base64}`);
+        console.log(`[scrape-chapter] Fetched image ${i + 1}/${chapterData.images.length}`);
+      } else {
+        console.error(`[scrape-chapter] Failed to fetch image ${i + 1}:`, result.status || result.error);
+        failedImages.push(imgUrl);
       }
-    });
-  }, chapterData.images);
-
-  // Wait for images to load
-  for (let w = 0; w < 40; w++) {
-    await new Promise((r) => setTimeout(r, 500));
-    if (imageBuffers.size >= Math.floor(chapterData.images.length * 0.9)) break;
+    } catch (err) {
+      console.error(`[scrape-chapter] Error fetching image ${i + 1}:`, err.message);
+      failedImages.push(imgUrl);
+    }
   }
 
-  console.log(`[scrape-chapter] Collected ${imageBuffers.size} images`);
-
-  const base64Images = [];
-  for (const imgUrl of chapterData.images) {
-    const buf = imageBuffers.get(imgUrl);
-    if (buf && buf.length > 0) {
-      try {
-        const ct = (contentTypeMap.get(imgUrl) || 'image/jpeg').split(';')[0];
-        const b64 = buf.toString('base64');
-        base64Images.push(`data:${ct};base64,${b64}`);
-      } catch (err) {
-        console.error(`[scrape-chapter] Failed to convert image: ${err.message}`);
-      }
-    }
+  console.log(`[scrape-chapter] Converted ${base64Images.length}/${chapterData.images.length} images`);
+  if (failedImages.length > 0) {
+    console.log(`[scrape-chapter] Failed images: ${failedImages.length}`);
   }
 
   await browser.close();
