@@ -1,7 +1,7 @@
 {
   "name": "comic-downloader-backend",
   "version": "1.0.0",
-  "description": "Comic scraping backend for batcave.biz",
+  "description": "Comic scraping backend",
   "main": "src/server.js",
   "scripts": {
     "start": "node --max-old-space-size=4096 src/server.js"

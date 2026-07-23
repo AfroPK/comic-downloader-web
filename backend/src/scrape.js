@@ -4,6 +4,7 @@ puppeteer.use(StealthPlugin);
 
 const path = require('path');
 const fs = require('fs');
+const { TARGET_SITE } = require('./config');
 
 function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
@@ -37,7 +38,7 @@ async function extractTitle(page) {
     for (const sel of selectors) {
       const el = document.querySelector(sel);
       const txt = el && el.textContent ? el.textContent.trim() : '';
-      if (txt && txt.length > 3 && !/BatCave\.biz/i.test(txt)) {
+      if (txt && txt.length > 3) {
         return txt.substring(0, 80);
       }
     }
@@ -93,13 +94,13 @@ async function scrapeComic(url) {
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Referer': 'https://batcave.biz/',
+    'Referer': `${TARGET_SITE}/`,
   });
 
   // Step 1: Visit homepage to establish session/cookies
   console.log('[scrape] Visiting homepage to establish session...');
   try {
-    await page.goto('https://batcave.biz/', { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(`${TARGET_SITE}/`, { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForTimeout(3000);
   } catch (e) {
     console.log('[scrape] Homepage visit timed out, continuing');
@@ -124,7 +125,7 @@ async function scrapeComic(url) {
   } catch (e) {}
 
   // Step 3: Try to find reader link, or construct it
-  let readerUrl = `https://batcave.biz/reader/${comicId}`;
+  let readerUrl = `${TARGET_SITE}/reader/${comicId}`;
   try {
     const foundReader = await page.evaluate(() => {
       const el = document.querySelector('a[href*="/reader/"]');
@@ -160,7 +161,7 @@ async function scrapeComic(url) {
     for (const chapter of data.chapters) {
       chapters.push({
         title: chapter.title?.trim() || `Chapter ${chapter.id}`,
-        url: `https://batcave.biz/reader/${comicId}/${chapter.id}`,
+        url: `${TARGET_SITE}/reader/${comicId}/${chapter.id}`,
         chapterId: chapter.id,
       });
     }

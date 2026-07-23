@@ -54,7 +54,7 @@ comic-downloader-web/
 ├── backend/           # Node.js + Express API server
 │   ├── node_modules/  # Puppeteer for Cloudflare bypass
 │   └── src/
-│       ├── scrape.js  # Scrapes batcave.biz pages
+│       ├── scrape.js  # Scrapes comic site pages
 │       └── server.js  # API endpoints (/api/scrape, /api/image)
 ├── frontend/          # React + Vite SPA
 │   ├── node_modules/  # JSZip, file-saver, React
@@ -70,10 +70,10 @@ Browser UI (React port 5173)
     ↓ API calls /api/*
 Backend Server (Node Express port 3000)
     ↓ Puppeteer browser automation
-batcave.biz (Cloudflare protected site)
+comic site (Cloudflare protected site)
     
 Flow:
-1. User enters batcave.biz comic URL in browser
+1. User enters comic site comic URL in browser
 2. Frontend sends to backend via /api/scrape
 3. Backend uses Puppeteer to bypass Cloudflare, scrape HTML
 4. Backend extracts chapter links and image URLs from pages

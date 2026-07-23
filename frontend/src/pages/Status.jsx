@@ -40,7 +40,7 @@ function Status() {
       }}>
         <h2 style={{ color: '#00d4ff', marginBottom: '0.5rem' }}>How to Use</h2>
         <ol style={{ paddingLeft: '1.5rem', lineHeight: '1.8' }}>
-          <li>Enter a batcave.biz comic URL (not /reader/...)</li>
+          <li>Enter a comic URL (not /reader/...)</li>
           <li>Click "Download" button</li>
           <li>Wait for scraping (~60-90 seconds for first time)</li>
           <li>Download chapters as CBZ files</li>
@@ -70,7 +70,7 @@ function Status() {
       </div>
 
       <p style={{ marginTop: '2rem', textAlign: 'center', color: '#888', fontStyle: 'italic' }}>
-        Comic Downloader is ready to use! Enter a real batcave.biz comic URL above and click Download.
+        Comic Downloader is ready to use! Enter a real comic URL above and click Download.
       </p>
     </div>
   );

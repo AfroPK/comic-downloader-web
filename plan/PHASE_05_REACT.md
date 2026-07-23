@@ -316,7 +316,7 @@ function UrlInput({ url, setUrl, onScrape, isLoading }) {
     <div className="input-section">
       <input
         type="url"
-        placeholder="Enter batcave.biz comic URL..."
+        placeholder="Enter comic site comic URL..."
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         onKeyDown={handleKeyDown}

@@ -19,7 +19,7 @@ Create `backend/package.json` with exact content:
 {
   "name": "comic-downloader-backend",
   "version": "1.0.0",
-  "description": "Comic scraping backend for batcave.biz",
+  "description": "Comic scraping backend for comic site",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js"

@@ -11,7 +11,7 @@ Write this EXACT code to `comic-downloader-web/backend/src/scrape.js`:
 const puppeteer = require('puppeteer');
 
 /**
- * Scrape a batcave.biz comic page.
+ * Scrape a comic site comic page.
  */
 async function scrapeComic(url) {
   const browser = await puppeteer.launch({

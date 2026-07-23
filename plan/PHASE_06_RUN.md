@@ -71,15 +71,15 @@ npm start
 # Then test with curl (in another terminal):
 curl -X POST http://localhost:3000/api/scrape \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://batcave.biz/example-comic/"}'
+  -d '{"url":"https://example-comic-site.com/example-comic/"}'
 ```
 
-You'll need to replace the URL with an actual batcave.biz comic URL.
+You'll need to replace the URL with an actual comic site comic URL.
 
 ## Step 6: Using the app from browser
 
 1. Open http://localhost:5173 in your browser
-2. Enter a batcave.biz comic URL (e.g., `https://batcave.biz/some-comic-name/`)
+2. Enter a comic site comic URL (e.g., `https://example-comic-site.com/some-comic-name/`)
 3. Click "Download" button
 4. Wait for scraping to complete (progress bar shows status)
 5. Once complete, you'll see:
@@ -125,7 +125,7 @@ If scraping fails, try running the scraper manually to see console output:
 
 ```bash
 cd comic-downloader-web/backend
-node -e "require('./src/scrape').scrapeComic('https://batcave.biz/your-comic-url/').then(console.log)"
+node -e "require('./src/scrape').scrapeComic('https://example-comic-site.com/your-comic-url/').then(console.log)"
 ```
 
 Check what errors appear and adjust accordingly.
@@ -182,7 +182,7 @@ comic-downloader-web/
 ## Summary of what you have built
 
 1. **Backend API** (port 3000):
-   - `/api/scrape` - Scrapes batcave.biz comic pages, bypasses Cloudflare, extracts chapter/image data
+   - `/api/scrape` - Scrapes comic site comic pages, bypasses Cloudflare, extracts chapter/image data
    - `/api/image` - Proxies images with proper headers for hotlink protection
    
 2. **Frontend UI** (port 5173):
@@ -198,6 +198,6 @@ comic-downloader-web/
 ## Next steps
 
 Once everything is working:
-1. Test with real batcave.biz URLs
+1. Test with real comic site URLs
 2. Try downloading individual chapters vs full comic
 3. Consider adding features like chapter sorting, progress persistence, or concurrent downloads

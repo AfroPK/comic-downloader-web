@@ -32,8 +32,8 @@ app.post('/api/scrape', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  if (!url.includes('batcave.biz')) {
-    return res.status(400).json({ error: 'Please provide a batcave.biz URL' });
+  if (!url.includes('comic site')) {
+    return res.status(400).json({ error: 'Please provide a comic site URL' });
   }
 
   try {
@@ -67,7 +67,7 @@ app.get('/api/image', async (req, res) => {
     const response = await fetch(decodedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://batcave.biz/',
+        'Referer': 'https://example-comic-site.com/',
       },
     });
 

@@ -27,8 +27,8 @@ app.post('/api/scrape', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  if (!url.includes('batcave.biz')) {
-    return res.status(400).json({ error: 'Please provide a batcave.biz URL' });
+  if (!url.includes('comic-site')) {
+    return res.status(400).json({ error: 'Please provide a valid comic URL' });
   }
 
   // Rate limiting
@@ -70,6 +70,10 @@ app.post('/api/scrape-chapter', async (req, res) => {
 
   if (!chapterUrl) {
     return res.status(400).json({ error: 'Chapter URL is required' });
+  }
+
+  if (!chapterUrl.includes('comic-site')) {
+    return res.status(400).json({ error: 'Please provide a valid chapter URL' });
   }
 
   try {
