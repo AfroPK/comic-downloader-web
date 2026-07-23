@@ -4,14 +4,13 @@ services:
     runtime: node
     build:
       buildCommand: |
-        apt-get update && apt-get install -y chromium-browser
-        npm install
+        cd backend && ./render-build.sh
       publishDir: .
-    startCommand: npm start
+    startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: CHROME_PATH
-        value: /usr/bin/chromium-browser
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
     healthCheck:
       path: /api/health

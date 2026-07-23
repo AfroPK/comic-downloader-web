@@ -40,16 +40,12 @@ async function findReaderUrl(page) {
 }
 
 async function scrapeComic(url) {
-  const chromePath = findChromePath();
-  console.log('[scrape] Using Chrome path:', chromePath || 'default Puppeteer path');
   const browser = await puppeteer.launch({
     headless: 'new',
-    executablePath: chromePath,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-gpu',
       '--single-process',
       '--no-zygote',
     ],
