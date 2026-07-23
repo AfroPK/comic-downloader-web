@@ -65,19 +65,24 @@ async function scrapeComic(url) {
 
   // Step 1: Load detail page and clear the anti-bot challenge (/_c?t=...)
   console.log('[scrape] Loading comic detail page...');
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
+
+  // Wait a bit for JavaScript to render content
+  await page.waitForTimeout(5000);
 
   let readerUrl = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await page.waitForSelector('a[href*="/reader/"]', { timeout: 20000 });
+      await page.waitForSelector('a[href*="/reader/"]', { timeout: 30000 });
       readerUrl = await findReaderUrl(page);
       if (readerUrl) break;
     } catch (e) {
       console.log(`[scrape] Attempt ${attempt + 1}: reader link not ready (${e.message})`);
     }
-    // Challenge may still be resolving; reload and retry
-    await page.reload({ waitUntil: 'networkidle0', timeout: 60000 });
+    // Challenge may still be resolving; wait and retry
+    await page.waitForTimeout(3000);
+    await page.reload({ waitUntil: 'networkidle2', timeout: 120000 });
+    await page.waitForTimeout(3000);
   }
 
   // Extract comic title (after challenge cleared)
