@@ -2,28 +2,9 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
 puppeteer.use(StealthPlugin);
 
-// Try to find Chrome executable dynamically
-function findChromePath() {
-  // Check environment variables first
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-
-  // Try common paths
-  const commonPaths = [
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux/chrome',
-    require('path').join(__dirname, '..', 'node_modules', '.puppeteer', 'chrome', 'linux-121.0.6167.85', 'chrome-linux', 'chrome'),
-  ];
-
-  const fs = require('fs');
-  for (const p of commonPaths) {
-    if (fs.existsSync(p)) return p;
-  }
-
-  return undefined;
-}
+// Explicit cache directory inside node_modules so Render preserves it
+const path = require('path');
+const cacheDir = path.join(__dirname, './node_modules/.cache/puppeteer');
 
 function extractComicId(url) {
   const match = url.match(/\/(\d+)-/);
@@ -42,6 +23,7 @@ async function findReaderUrl(page) {
 async function scrapeComic(url) {
   const browser = await puppeteer.launch({
     headless: 'new',
+    cacheDir: cacheDir,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',

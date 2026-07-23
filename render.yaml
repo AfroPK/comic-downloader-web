@@ -4,13 +4,13 @@ services:
     runtime: node
     build:
       buildCommand: |
-        cd backend && ./render-build.sh
+        cd backend && npm install
       publishDir: .
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/.cache/puppeteer
+        value: ./node_modules/.cache/puppeteer
     healthCheck:
       path: /api/health
