@@ -25,26 +25,29 @@ function App() {
     await scrape(url.trim());
   };
 
+  const isLoading = status === 'scraping' || status === 'downloading';
+  const hasResults = chapters.length > 0 && comicTitle;
+
   return (
-    <div className="app">
+    <div className={`app ${isLoading || hasResults ? 'app--active' : ''}`}>
+      <div className="hero-section">
+        <div className="hero-content">
+          <h1 className="search-title">Comic Downloader</h1>
+          <UrlInput
+            url={url}
+            setUrl={setUrl}
+            onScrape={handleScrape}
+            isLoading={status === 'scraping'}
+          />
+        </div>
+      </div>
+
       <main className="app-main">
         <div className="content-grid">
-          <div className="search-section">
-            <div className="search-content">
-              <h1 className="search-title">Comic Downloader</h1>
-              <UrlInput
-                url={url}
-                setUrl={setUrl}
-                onScrape={handleScrape}
-                isLoading={status === 'scraping'}
-              />
-            </div>
-          </div>
-
           {status === 'scraping' && (
             <ProgressPanel
               progress={progress}
-              message="Scraping comic pages..."
+              message="Entering void..."
             />
           )}
 
