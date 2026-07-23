@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
 puppeteer.use(StealthPlugin);
 
-// Use system Chromium if available (Docker), otherwise fall back to Puppeteer's cache
 const path = require('path');
 const fs = require('fs');
 
@@ -23,25 +22,6 @@ const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../nod
 function extractComicId(url) {
   const match = url.match(/\/(\d+)-/);
   return match ? match[1] : null;
-}
-
-async function findReaderUrl(page) {
-  return page.evaluate(() => {
-    const selectors = [
-      'a.page__btn-read[href*="/reader/"]',
-      'a[href*="/reader/"]',
-      'a.btn-read',
-      'a.read-btn',
-      'button[data-href*="/reader/"]',
-    ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) {
-        return el.href || el.getAttribute('data-href') || null;
-      }
-    }
-    return null;
-  });
 }
 
 async function extractTitle(page) {
@@ -66,6 +46,13 @@ async function extractTitle(page) {
 }
 
 async function scrapeComic(url) {
+  const comicId = extractComicId(url);
+  if (!comicId) {
+    throw new Error('Could not extract comic ID from URL');
+  }
+
+  console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
+
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
@@ -77,92 +64,32 @@ async function scrapeComic(url) {
       '--single-process',
       '--no-zygote',
       '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
     ],
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
   const page = await browser.newPage();
-
-  // Set a realistic viewport
   await page.setViewport({ width: 1920, height: 1080 });
-
-  // Set user agent and headers
   await page.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   );
-  await page.setExtraHTTPHeaders({
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-  });
 
-  const comicId = extractComicId(url);
-  if (!comicId) {
-    await browser.close();
-    throw new Error('Could not extract comic ID from URL');
-  }
-
-  console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
-
-  // Step 1: Load detail page and clear the anti-bot challenge (/_c?t=...)
-  console.log('[scrape] Loading comic detail page...');
+  // Go directly to reader URL - skip detail page which may be blocked
+  const readerUrl = `https://batcave.biz/reader/${comicId}`;
+  console.log(`[scrape] Loading reader URL directly: ${readerUrl}`);
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
+    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
   } catch (e) {
-    console.log('[scrape] Initial goto timed out, continuing anyway');
+    console.log('[scrape] Reader page goto timed out, continuing anyway');
   }
 
-  // Wait a bit for JavaScript to render content
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(3000);
 
-  let readerUrl = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      await page.waitForSelector('a[href*="/reader/"]', { timeout: 30000 });
-      readerUrl = await findReaderUrl(page);
-      if (readerUrl) break;
-    } catch (e) {
-      console.log(`[scrape] Attempt ${attempt + 1}: reader link not ready (${e.message})`);
-    }
-
-    // Try scrolling to trigger lazy loading
-    try {
-      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    } catch (e) {}
-
-    // Wait and retry
-    await page.waitForTimeout(5000);
-    try {
-      await page.reload({ waitUntil: 'networkidle2', timeout: 120000 });
-    } catch (e) {
-      console.log('[scrape] Reload timed out, continuing anyway');
-    }
-    await page.waitForTimeout(5000);
-  }
-
-  // Extract comic title
   let comicTitle = 'Unknown Comic';
   try {
     comicTitle = await extractTitle(page);
   } catch (e) {}
-
-  // Fallback: construct reader URL directly from comic ID
-  if (!readerUrl) {
-    readerUrl = `https://batcave.biz/reader/${comicId}`;
-    console.log(`[scrape] No reader link found. Falling back to constructed URL: ${readerUrl}`);
-  }
-
-  console.log(`[scrape] Reader URL: ${readerUrl}`);
-
-  // Step 2: Load reader page (same page = challenge cookie persists)
-  console.log('[scrape] Loading reader page...');
-  try {
-    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 120000 });
-  } catch (e) {
-    console.log('[scrape] Reader page goto timed out, continuing anyway');
-  }
-  await page.waitForTimeout(5000);
 
   const data = await page.evaluate(() => window.__DATA__ || null);
 
@@ -172,7 +99,6 @@ async function scrapeComic(url) {
     return { comicTitle, chapters: [] };
   }
 
-  // Build chapters array with metadata only (no images yet)
   const chapters = [];
   if (data.chapters && Array.isArray(data.chapters)) {
     for (const chapter of data.chapters) {
@@ -185,6 +111,7 @@ async function scrapeComic(url) {
   }
 
   await browser.close();
+  console.log(`[scrape] Found ${chapters.length} chapters`);
   return { comicTitle, chapters };
 }
 
