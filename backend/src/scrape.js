@@ -27,15 +27,45 @@ function extractComicId(url) {
 
 async function findReaderUrl(page) {
   return page.evaluate(() => {
-    const btn =
-      document.querySelector('a.page__btn-read[href*="/reader/"]') ||
-      document.querySelector('a[href*="/reader/"]');
-    return btn ? btn.href : null;
+    const selectors = [
+      'a.page__btn-read[href*="/reader/"]',
+      'a[href*="/reader/"]',
+      'a.btn-read',
+      'a.read-btn',
+      'button[data-href*="/reader/"]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        return el.href || el.getAttribute('data-href') || null;
+      }
+    }
+    return null;
+  });
+}
+
+async function extractTitle(page) {
+  return page.evaluate(() => {
+    const selectors = [
+      'h1[class*="title"]',
+      '[class*="page__title"]',
+      '[class*="post-title"]',
+      '[class*="comic-title"]',
+      'h1',
+      'title',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      const txt = el && el.textContent ? el.textContent.trim() : '';
+      if (txt && txt.length > 3 && !/BatCave\.biz/i.test(txt)) {
+        return txt.substring(0, 80);
+      }
+    }
+    return 'Unknown Comic';
   });
 }
 
 async function scrapeComic(url) {
-  console.log('[scrape] Using Chrome path:', executablePath || 'default Puppeteer path');
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
@@ -46,14 +76,25 @@ async function scrapeComic(url) {
       '--disable-dev-shm-usage',
       '--single-process',
       '--no-zygote',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
     ],
     ignoreDefaultArgs: ['--enable-automation'],
   });
 
   const page = await browser.newPage();
+
+  // Set a realistic viewport
+  await page.setViewport({ width: 1920, height: 1080 });
+
+  // Set user agent and headers
   await page.setUserAgent(
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
   );
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  });
 
   const comicId = extractComicId(url);
   if (!comicId) {
@@ -65,7 +106,12 @@ async function scrapeComic(url) {
 
   // Step 1: Load detail page and clear the anti-bot challenge (/_c?t=...)
   console.log('[scrape] Loading comic detail page...');
-  await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
+
+  try {
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 120000 });
+  } catch (e) {
+    console.log('[scrape] Initial goto timed out, continuing anyway');
+  }
 
   // Wait a bit for JavaScript to render content
   await page.waitForTimeout(5000);
@@ -79,53 +125,44 @@ async function scrapeComic(url) {
     } catch (e) {
       console.log(`[scrape] Attempt ${attempt + 1}: reader link not ready (${e.message})`);
     }
-    // Challenge may still be resolving; wait and retry
-    await page.waitForTimeout(3000);
-    await page.reload({ waitUntil: 'networkidle2', timeout: 120000 });
-    await page.waitForTimeout(3000);
+
+    // Try scrolling to trigger lazy loading
+    try {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    } catch (e) {}
+
+    // Wait and retry
+    await page.waitForTimeout(5000);
+    try {
+      await page.reload({ waitUntil: 'networkidle2', timeout: 120000 });
+    } catch (e) {
+      console.log('[scrape] Reload timed out, continuing anyway');
+    }
+    await page.waitForTimeout(5000);
   }
 
-  // Extract comic title (after challenge cleared)
+  // Extract comic title
   let comicTitle = 'Unknown Comic';
   try {
-    comicTitle = await page.evaluate(() => {
-      const selectors = [
-        'h1[class*="title"]',
-        '[class*="page__title"]',
-        '[class*="post-title"]',
-        '[class*="comic-title"]',
-        'h1',
-        'title',
-      ];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        const txt = el && el.textContent ? el.textContent.trim() : '';
-        if (txt && txt.length > 3 && !/BatCave\.biz/i.test(txt)) {
-          return txt.substring(0, 80);
-        }
-      }
-      return 'Unknown Comic';
-    });
+    comicTitle = await extractTitle(page);
   } catch (e) {}
 
+  // Fallback: construct reader URL directly from comic ID
   if (!readerUrl) {
-    const currentUrl = page.url();
-    console.log(`[scrape] No reader link found. Current URL: ${currentUrl}`);
-    try {
-      await page.screenshot({ path: 'scrape-failure.png' });
-      console.log('[scrape] Saved scrape-failure.png for inspection');
-    } catch (e) {}
-    await browser.close();
-    throw new Error(
-      'Could not find the "Start Reading" link. The site may be blocking access or the comic URL is invalid.'
-    );
+    readerUrl = `https://batcave.biz/reader/${comicId}`;
+    console.log(`[scrape] No reader link found. Falling back to constructed URL: ${readerUrl}`);
   }
 
   console.log(`[scrape] Reader URL: ${readerUrl}`);
 
   // Step 2: Load reader page (same page = challenge cookie persists)
   console.log('[scrape] Loading reader page...');
-  await page.goto(readerUrl, { waitUntil: 'networkidle0', timeout: 60000 });
+  try {
+    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 120000 });
+  } catch (e) {
+    console.log('[scrape] Reader page goto timed out, continuing anyway');
+  }
+  await page.waitForTimeout(5000);
 
   const data = await page.evaluate(() => window.__DATA__ || null);
 
