@@ -2,11 +2,11 @@ services:
   - type: web
     name: comic-downloader-backend
     runtime: node
+    rootDir: backend
     build:
-      buildCommand: |
-        cd backend && npm install
+      buildCommand: npm install
       publishDir: .
-    startCommand: cd backend && npm start
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
