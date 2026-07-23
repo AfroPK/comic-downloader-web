@@ -2,13 +2,29 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
 puppeteer.use(StealthPlugin);
 
-// Explicit cache directory inside node_modules so Render preserves it
+// Use system Chromium if available (Docker), otherwise fall back to Puppeteer's cache
 const path = require('path');
+const fs = require('fs');
+
+function findExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const systemPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+  for (const p of systemPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
+const executablePath = findExecutablePath();
 const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../node_modules/.cache/puppeteer');
 
 async function scrapeChapter(chapterUrl) {
+  console.log('[scrape-chapter] Using Chrome path:', executablePath || 'default Puppeteer path');
   const browser = await puppeteer.launch({
     headless: 'new',
+    executablePath: executablePath,
     cacheDir: cacheDir,
     args: [
       '--no-sandbox',
