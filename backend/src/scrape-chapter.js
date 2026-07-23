@@ -27,11 +27,14 @@ function findChromePath() {
 
 async function scrapeChapter(chapterUrl) {
   const chromePath = findChromePath();
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR || require('path').join(__dirname, '..', 'node_modules', '.puppeteer');
   console.log('[scrape-chapter] Using Chrome path:', chromePath || 'default Puppeteer path');
+  console.log('[scrape-chapter] Using Puppeteer cache dir:', cacheDir);
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: chromePath,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    cacheDir: cacheDir,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'],
   });
 
   const page = await browser.newPage();
