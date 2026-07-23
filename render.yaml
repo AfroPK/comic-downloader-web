@@ -11,7 +11,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: CHROME_PATH
-        value: /opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux/chrome
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
     healthCheck:
       path: /api/health

@@ -2,8 +2,31 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
 puppeteer.use(StealthPlugin);
 
+// Try to find Chrome executable dynamically
+function findChromePath() {
+  // Check environment variables first
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  // Try common paths
+  const commonPaths = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/opt/render/.cache/puppeteer/chrome/linux-121.0.6167.85/chrome-linux/chrome',
+  ];
+
+  const fs = require('fs');
+  for (const p of commonPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  return undefined;
+}
+
 async function scrapeChapter(chapterUrl) {
-  const chromePath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+  const chromePath = findChromePath();
+  console.log('[scrape-chapter] Using Chrome path:', chromePath || 'default Puppeteer path');
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: chromePath,
