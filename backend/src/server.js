@@ -30,9 +30,12 @@ app.get('/api/health', (req, res) => {
 function getScraper(url) {
   // Handle both absolute and relative URLs
   const urlStr = String(url || '');
+  console.log(`[server] getScraper for: ${urlStr.substring(0, 80)}`);
   if (urlStr.includes('xoxocomic.com')) {
+    console.log('[server] Using xoxocomic scraper');
     return { scrapeComic: scrapeComicXoxo, scrapeChapter: scrapeChapterXoxo };
   }
+  console.log('[server] Using generic scraper');
   return { scrapeComic: scrapeComicGeneric, scrapeChapter: scrapeChapterGeneric };
 }
 
@@ -152,6 +155,7 @@ const { ensureDir, sanitizeFileName, cleanupDir, downloadFullComic, TMP_DIR } = 
 
 app.post('/api/download-full', async (req, res) => {
   const { comicUrl } = req.body;
+  console.log(`[server] /api/download-full called with comicUrl: ${comicUrl}`);
 
   if (!comicUrl) {
     return res.status(400).json({ error: 'comicUrl is required' });
@@ -175,15 +179,28 @@ app.post('/api/download-full', async (req, res) => {
     try {
       // Step 1: Scrape comic info using existing scraper (handles session setup)
       jobs.set(jobId, { ...jobs.get(jobId), status: 'scraping-info' });
-      const { scrapeComic } = getScraper(comicUrl);
-      const comicInfo = await scrapeComic(comicUrl);
+
+      // If comicUrl is a chapter URL, try to derive the comic URL
+      let targetUrl = comicUrl;
+      const urlStr = String(comicUrl || '');
+
+      // Batcave chapter URL: https://batcave.biz/reader/33051/233702 -> comic URL
+      const batcaveMatch = urlStr.match(/batcave\.biz\/reader\/(\d+)\/\d+/);
+      if (batcaveMatch) {
+        const comicId = batcaveMatch[1];
+        targetUrl = `https://batcave.biz/${comicId}-`;
+        console.log(`[server] Converted batcave chapter URL to comic URL: ${targetUrl}`);
+      }
+
+      const { scrapeComic } = getScraper(targetUrl);
+      const comicInfo = await scrapeComic(targetUrl);
 
       if (!comicInfo.chapters || comicInfo.chapters.length === 0) {
         throw new Error('No chapters found');
       }
 
       // Step 2: Download all chapters using single browser + disk storage
-      const result = await downloadFullComic(comicUrl, jobDir, (phase, current, total, detail) => {
+      const result = await downloadFullComic(targetUrl, jobDir, (phase, current, total, detail) => {
         const job = jobs.get(jobId);
         if (!job) return;
 
