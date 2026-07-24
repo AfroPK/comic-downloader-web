@@ -13,6 +13,7 @@ function App() {
     error,
     progress,
     downloadingChapterIndex,
+    downloadProgress,
     scrape,
     downloadChapter,
     downloadFullComic,
@@ -66,6 +67,7 @@ function App() {
                 onDownloadChapter={downloadChapter}
                 isDownloading={status === 'downloading'}
                 downloadingChapterIndex={downloadingChapterIndex}
+                downloadProgress={downloadProgress}
               />
 
               <FullDownloadSection

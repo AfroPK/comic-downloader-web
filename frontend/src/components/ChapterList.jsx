@@ -1,4 +1,4 @@
-function ChapterList({ chapters, onDownloadChapter, isDownloading, downloadingChapterIndex }) {
+function ChapterList({ chapters, onDownloadChapter, isDownloading, downloadingChapterIndex, downloadProgress }) {
   return (
     <div className="info-card">
       <h2>Chapters</h2>
@@ -26,8 +26,9 @@ function ChapterList({ chapters, onDownloadChapter, isDownloading, downloadingCh
               >
                 {isThisChapterDownloading ? (
                   <>
-                    <span className="spinner"></span>
-                    Downloading
+                    {downloadProgress.total > 0
+                      ? `${downloadProgress.current}/${downloadProgress.total}`
+                      : '...'}
                   </>
                 ) : (
                   'CBZ'

@@ -28,7 +28,7 @@ function findExecutablePath() {
 const executablePath = findExecutablePath();
 const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../node_modules/.cache/puppeteer');
 
-async function scrapeChapter(chapterUrl) {
+async function scrapeChapter(chapterUrl, onProgress) {
   const baseUrl = getBaseUrl(chapterUrl);
   console.log('[scrape-chapter] Using Chrome path:', executablePath || 'default Puppeteer path');
   console.log('[scrape-chapter] Base URL:', baseUrl);
@@ -115,6 +115,9 @@ async function scrapeChapter(chapterUrl) {
   console.log(`[scrape-chapter] Found ${chapterData.images.length} images`);
   console.log('[scrape-chapter] First image URL:', chapterData.images[0]);
 
+  // Report total images
+  if (onProgress) onProgress(0, chapterData.images.length);
+
   // Collect images by fetching them server-side with proper headers
   const base64Images = [];
   const failedImages = [];
@@ -153,6 +156,9 @@ async function scrapeChapter(chapterUrl) {
       const b64 = buffer.toString('base64');
       base64Images.push(`data:${ct};base64,${b64}`);
       console.log(`[scrape-chapter] Fetched image ${i + 1}/${chapterData.images.length} (${buffer.length} bytes)`);
+
+      // Report progress after each image
+      if (onProgress) onProgress(base64Images.length, chapterData.images.length);
     } catch (err) {
       console.error(`[scrape-chapter] Error fetching image ${i + 1}:`, err.message);
       failedImages.push(imgUrl);

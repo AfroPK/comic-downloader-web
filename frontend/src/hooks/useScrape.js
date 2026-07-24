@@ -15,7 +15,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-async function pollJob(jobId, endpoint) {
+async function pollJob(jobId, endpoint, onProgress) {
   return new Promise((resolve, reject) => {
     const check = async () => {
       try {
@@ -26,6 +26,10 @@ async function pollJob(jobId, endpoint) {
         } else if (data.status === 'error') {
           reject(new Error(data.error));
         } else {
+          // Report progress while polling
+          if (onProgress && data.progress !== undefined && data.total > 0) {
+            onProgress(data.progress, data.total);
+          }
           setTimeout(check, 2000);
         }
       } catch (err) {
@@ -43,6 +47,7 @@ function useScrape() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [downloadingChapterIndex, setDownloadingChapterIndex] = useState(null);
+  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
 
   const scrape = useCallback(async (url) => {
     setStatus('scraping');
@@ -85,6 +90,7 @@ function useScrape() {
   const downloadChapter = useCallback(async (chapterUrl, chapterTitle, index) => {
     setStatus('downloading');
     setDownloadingChapterIndex(index);
+    setDownloadProgress({ current: 0, total: 0 });
     setError('');
 
     try {
@@ -99,7 +105,10 @@ function useScrape() {
       }
 
       const { jobId } = await response.json();
-      const result = await pollJob(jobId, '/scrape-chapter');
+      // Pass progress callback to pollJob
+      const result = await pollJob(jobId, '/scrape-chapter', (current, total) => {
+        setDownloadProgress({ current, total });
+      });
 
       if (!result.images || result.images.length === 0) {
         throw new Error('No images received for this chapter');
@@ -215,6 +224,7 @@ function useScrape() {
     error,
     progress,
     downloadingChapterIndex,
+    downloadProgress,
     scrape,
     downloadChapter,
     downloadFullComic,

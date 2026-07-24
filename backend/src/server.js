@@ -108,17 +108,25 @@ app.post('/api/scrape-chapter', async (req, res) => {
   }
 
   const jobId = Date.now().toString();
-  jobs.set(jobId, { status: 'pending', result: null, error: null });
+  jobs.set(jobId, { status: 'pending', result: null, error: null, progress: 0, total: 0 });
 
   res.json({ status: 'pending', jobId });
 
   try {
     const { scrapeChapter } = getScraper(chapterUrl);
-    const result = await scrapeChapter(chapterUrl);
-    jobs.set(jobId, { status: 'done', result, error: null });
+    // Pass progress callback that updates job as images are collected
+    const onProgress = (current, total) => {
+      const job = jobs.get(jobId);
+      if (job) {
+        jobs.set(jobId, { ...job, progress: current, total });
+      }
+    };
+    const result = await scrapeChapter(chapterUrl, onProgress);
+    jobs.set(jobId, { status: 'done', result, error: null, progress: result.images.length, total: result.images.length });
   } catch (err) {
     console.error('[server] Chapter scrape error:', err);
-    jobs.set(jobId, { status: 'error', result: null, error: err.message });
+    const job = jobs.get(jobId);
+    jobs.set(jobId, { ...job, status: 'error', error: err.message });
   }
 });
 

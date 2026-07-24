@@ -192,7 +192,7 @@ async function scrapeComic(url, retryCount = 0) {
   }
 }
 
-async function scrapeChapter(chapterUrl, retryCount = 0) {
+async function scrapeChapter(chapterUrl, onProgress, retryCount = 0) {
   const maxRetries = 2;
   const browser = await createBrowser();
   const page = await setupPage(browser);
@@ -214,7 +214,7 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
       if (retryCount < maxRetries) {
         console.log(`[xoxocomic] Chapter blocked, retrying (${retryCount + 1}/${maxRetries})...`);
         await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
-        return scrapeChapter(chapterUrl, retryCount + 1);
+        return scrapeChapter(chapterUrl, onProgress, retryCount + 1);
       }
       throw new Error('Access blocked by xoxocomic. Please try again later.');
     }
@@ -231,6 +231,9 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
       await browser.close();
       throw new Error('No images found for this chapter');
     }
+
+    // Report total images to download
+    if (onProgress) onProgress(0, images.length);
 
     // Download images with proper headers
     const base64Images = [];
@@ -265,6 +268,9 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
         const b64 = buffer.toString('base64');
         base64Images.push(`data:${ct};base64,${b64}`);
         console.log(`[xoxocomic] Fetched image ${i + 1}/${images.length} (${buffer.length} bytes)`);
+
+        // Report progress after each image
+        if (onProgress) onProgress(base64Images.length, images.length);
       } catch (err) {
         console.error(`[xoxocomic] Error fetching image ${i + 1}:`, err.message);
       }
@@ -279,7 +285,7 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
     if (retryCount < maxRetries && (err.message.includes('blocked') || err.message.includes('timeout'))) {
       console.log(`[xoxocomic] Retrying chapter after error (${retryCount + 1}/${maxRetries})...`);
       await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
-      return scrapeChapter(chapterUrl, retryCount + 1);
+      return scrapeChapter(chapterUrl, onProgress, retryCount + 1);
     }
     throw err;
   }
