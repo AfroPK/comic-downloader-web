@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { scrapeComic: scrapeComicGeneric } = require('./scrape');
 const { scrapeChapter: scrapeChapterGeneric } = require('./scrape-chapter');
 const { scrapeComic: scrapeComicXoxo, scrapeChapter: scrapeChapterXoxo } = require('./scrapers/xoxocomic');
@@ -137,6 +139,147 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
     return res.status(404).json({ error: 'Job not found' });
   }
   res.json(job);
+});
+
+// Full comic download - server-side with disk storage
+const { ensureDir, sanitizeFileName, createCbzOnDisk, createMasterZip, cleanupDir, TMP_DIR } = require('./download-full');
+
+app.post('/api/download-full', async (req, res) => {
+  const { comicUrl } = req.body;
+
+  if (!comicUrl) {
+    return res.status(400).json({ error: 'comicUrl is required' });
+  }
+
+  if (!isAllowedUrl(comicUrl)) {
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
+    return res.status(400).json({ error: `URL not allowed. Allowed sites: ${allowedList}` });
+  }
+
+  const jobId = Date.now().toString();
+  const jobDir = path.join(TMP_DIR, 'comic-downloads', jobId);
+  ensureDir(jobDir);
+
+  jobs.set(jobId, { status: 'pending', type: 'download-full', filePath: null, error: null, comicUrl });
+  res.json({ status: 'pending', jobId });
+
+  // Run in background
+  (async () => {
+    try {
+      // Step 1: Scrape comic info
+      jobs.set(jobId, { ...jobs.get(jobId), status: 'scraping-info' });
+      const { scrapeComic } = getScraper(comicUrl);
+      const comicResult = await scrapeComic(comicUrl);
+      const comicTitle = comicResult.comicTitle || 'Comic';
+      const chapters = comicResult.chapters || [];
+
+      if (chapters.length === 0) {
+        throw new Error('No chapters found');
+      }
+
+      // Step 2: Download each chapter as CBZ
+      jobs.set(jobId, { ...jobs.get(jobId), status: 'downloading-chapters', totalChapters: chapters.length, currentChapter: 0 });
+      const cbzPaths = [];
+      const { scrapeChapter } = getScraper(comicUrl);
+
+      for (let i = 0; i < chapters.length; i++) {
+        const chapter = chapters[i];
+        jobs.set(jobId, { ...jobs.get(jobId), currentChapter: i + 1, chapterTitle: chapter.title });
+
+        const chapterResult = await scrapeChapter(chapter.url);
+        if (!chapterResult.images || chapterResult.images.length === 0) {
+          console.warn(`[download-full] Skipping chapter ${chapter.title} - no images`);
+          continue;
+        }
+
+        const cbzName = `${sanitizeFileName(chapter.title || `Chapter${i + 1}`)}.cbz`;
+        const cbzPath = path.join(jobDir, cbzName);
+        await createCbzOnDisk(chapterResult.images, cbzPath);
+        cbzPaths.push({ name: cbzName, path: cbzPath });
+        console.log(`[download-full] Created CBZ: ${cbzName} (${chapterResult.images.length} images)`);
+      }
+
+      if (cbzPaths.length === 0) {
+        throw new Error('No chapters could be downloaded');
+      }
+
+      // Step 3: Bundle CBZs into master ZIP
+      jobs.set(jobId, { ...jobs.get(jobId), status: 'bundling' });
+      const masterName = `${sanitizeFileName(comicTitle)}Full.zip`;
+      const masterPath = path.join(jobDir, masterName);
+      await createMasterZip(cbzPaths, masterPath);
+      console.log(`[download-full] Created master ZIP: ${masterName} (${cbzPaths.length} CBZs)`);
+
+      // Step 4: Store result
+      jobs.set(jobId, { status: 'done', type: 'download-full', filePath: masterPath, fileName: masterName, error: null });
+
+      // Cleanup CBZ files (keep only master ZIP)
+      for (const { path: cbzPath } of cbzPaths) {
+        try { fs.unlinkSync(cbzPath); } catch (e) {}
+      }
+    } catch (err) {
+      console.error('[server] Full download error:', err);
+      jobs.set(jobId, { ...jobs.get(jobId), status: 'error', error: err.message });
+      cleanupDir(jobDir);
+    }
+  })();
+});
+
+// Check full download status
+app.get('/api/download-full/:jobId', (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job || job.type !== 'download-full') {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  res.json({
+    status: job.status,
+    currentChapter: job.currentChapter,
+    totalChapters: job.totalChapters,
+    chapterTitle: job.chapterTitle,
+    fileName: job.fileName,
+    error: job.error,
+  });
+});
+
+// Serve downloaded file
+app.get('/api/download-file/:jobId', (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job || job.type !== 'download-full') {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+  if (job.status !== 'done' || !job.filePath) {
+    return res.status(400).json({ error: 'File not ready' });
+  }
+
+  const filePath = job.filePath;
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File no longer available' });
+  }
+
+  const fileName = job.fileName || 'download.zip';
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Type', 'application/zip');
+
+  const stream = fs.createReadStream(filePath);
+  stream.pipe(res);
+
+  stream.on('close', () => {
+    // Clean up after download
+    try {
+      const jobDir = path.dirname(filePath);
+      cleanupDir(jobDir);
+      jobs.delete(req.params.jobId);
+      console.log(`[download-full] Cleaned up job ${req.params.jobId}`);
+    } catch (e) {
+      console.error('[download-full] Cleanup error:', e.message);
+    }
+  });
+
+  stream.on('error', (err) => {
+    console.error('[download-full] Stream error:', err.message);
+    res.status(500).json({ error: 'Download failed' });
+  });
 });
 
 // Cleanup old jobs every 10 minutes
