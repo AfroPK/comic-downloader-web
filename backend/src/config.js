@@ -23,8 +23,11 @@ function isAllowedUrl(url) {
   return getAllowedSites().some(site => url.includes(new URL(site).hostname));
 }
 
+const TARGET_SITE = process.env.TARGET_SITE || '';
+
 module.exports = {
   getAllowedSites,
   getSiteForUrl,
   isAllowedUrl,
+  TARGET_SITE,
 };
