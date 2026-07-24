@@ -48,6 +48,7 @@ function useScrape() {
   const [progress, setProgress] = useState(0);
   const [downloadingChapterIndex, setDownloadingChapterIndex] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
+  const [fullDownloadProgress, setFullDownloadProgress] = useState({ chapterIndex: 0, totalChapters: 0, imageCurrent: 0, imageTotal: 0 });
 
   const scrape = useCallback(async (url) => {
     setStatus('scraping');
@@ -143,6 +144,7 @@ function useScrape() {
   const downloadFullComic = useCallback(async () => {
     setStatus('downloading-full');
     setError('');
+    setFullDownloadProgress({ chapterIndex: 0, totalChapters: chapters.length, imageCurrent: 0, imageTotal: 0 });
 
     try {
       const zip = new JSZip();
@@ -151,6 +153,7 @@ function useScrape() {
       for (let i = 0; i < chapters.length; i++) {
         const chapter = chapters[i];
         setDownloadingChapterIndex(i);
+        setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: 0, imageTotal: 0 });
 
         const response = await fetch(`${API_BASE}/scrape-chapter`, {
           method: 'POST',
@@ -164,7 +167,10 @@ function useScrape() {
         }
 
         const { jobId } = await response.json();
-        const data = await pollJob(jobId, '/scrape-chapter');
+        // Pass progress callback to track image download progress
+        const data = await pollJob(jobId, '/scrape-chapter', (current, total) => {
+          setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: current, imageTotal: total });
+        });
 
         if (!data.images || data.images.length === 0) {
           console.warn(`Skipping chapter ${chapter.title} - no images`);
@@ -201,6 +207,7 @@ function useScrape() {
     progress,
     downloadingChapterIndex,
     downloadProgress,
+    fullDownloadProgress,
     scrape,
     downloadChapter,
     downloadFullComic,
