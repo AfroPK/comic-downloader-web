@@ -124,35 +124,11 @@ function useScrape() {
 
       const content = await zip.generateAsync({ type: 'blob' });
 
-      // Build filename: Abbreviated initials + issue/chapter number
-      // e.g. "Absolute Batman" -> "AB", "Absolute Batman Issue #1" -> "AB#1.cbz"
-      // e.g. "Absolute Batman 1 Noir Edition" -> "AB#1NE.cbz"
-
-      function abbreviate(str) {
-        // Extract uppercase letters first, then title-case initials
-        const words = str.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).filter(Boolean);
-        // Try to get initials from each word (first letter uppercase)
-        let initials = words.map(w => w[0].toUpperCase()).join('');
-        return initials;
-      }
-
-      function extractIssueNum(title) {
-        // Extract just the number and any suffix like "NE" (Noir Edition)
-        const m = title.match(/#?(\d+)(?:\s+([A-Z]{1,4}))?/i);
-        if (m) {
-          let num = m[1];
-          let suffix = m[2] ? m[2].toUpperCase() : '';
-          return `#${num}${suffix}`;
-        }
-        // Fallback: just grab the last number
-        const fallback = title.match(/(\d+)/g);
-        if (fallback) return `#${fallback[fallback.length - 1]}`;
-        return '';
-      }
-
-      const comicInitials = abbreviate(comicTitle);
-      const issuePart = extractIssueNum(chapterTitle || '');
-      const fileName = `${comicInitials}${issuePart}.cbz`;
+      // Build filename: Chapter title only, stripping all non-alphanumeric chars (keep #)
+      // e.g. "Issue #13" -> "Issue#13.cbz"
+      // e.g. "1 Noir Edition" -> "1NoirEdition.cbz"
+      const sanitize = (str) => str.replace(/[^a-zA-Z0-9#]/g, '');
+      const fileName = `${sanitize(chapterTitle || `Chapter${index + 1}`)}.cbz`;
       saveAs(content, fileName);
 
       setStatus('done');
