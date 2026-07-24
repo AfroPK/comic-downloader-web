@@ -15,6 +15,21 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
+function sanitizeFileName(str) {
+  return str.replace(/[^a-zA-Z0-9#]/g, '');
+}
+
+async function createCbzBlob(images) {
+  const zip = new JSZip();
+  for (let i = 0; i < images.length; i++) {
+    const imgDataUrl = images[i];
+    const blob = dataUrlToBlob(imgDataUrl);
+    const ext = blob.type.split('/')[1] || 'jpg';
+    zip.file(`page_${String(i + 1).padStart(3, '0')}.${ext}`, blob);
+  }
+  return zip.generateAsync({ type: 'blob' });
+}
+
 async function pollJob(jobId, endpoint, onProgress) {
   return new Promise((resolve, reject) => {
     const check = async () => {
@@ -115,21 +130,10 @@ function useScrape() {
         throw new Error('No images received for this chapter');
       }
 
-      const zip = new JSZip();
-      for (let i = 0; i < result.images.length; i++) {
-        const imgDataUrl = result.images[i];
-        const blob = dataUrlToBlob(imgDataUrl);
-        const ext = blob.type.split('/')[1] || 'jpg';
-        zip.file(`page_${String(i + 1).padStart(3, '0')}.${ext}`, blob);
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
+      const content = await createCbzBlob(result.images);
 
       // Build filename: Chapter title only, stripping all non-alphanumeric chars (keep #)
-      // e.g. "Issue #13" -> "Issue#13.cbz"
-      // e.g. "1 Noir Edition" -> "1NoirEdition.cbz"
-      const sanitize = (str) => str.replace(/[^a-zA-Z0-9#]/g, '');
-      const fileName = `${sanitize(chapterTitle || `Chapter${index + 1}`)}.cbz`;
+      const fileName = `${sanitizeFileName(chapterTitle || `Chapter${index + 1}`)}.cbz`;
       saveAs(content, fileName);
 
       setStatus('done');
@@ -147,8 +151,7 @@ function useScrape() {
     setFullDownloadProgress({ chapterIndex: 0, totalChapters: chapters.length, imageCurrent: 0, imageTotal: 0 });
 
     try {
-      const zip = new JSZip();
-      const comicFolder = zip.folder(comicTitle.replace(/[^a-zA-Z0-9_-]/g, '_'));
+      const cbzBlobs = [];
 
       for (let i = 0; i < chapters.length; i++) {
         const chapter = chapters[i];
@@ -167,7 +170,6 @@ function useScrape() {
         }
 
         const { jobId } = await response.json();
-        // Pass progress callback to track image download progress
         const data = await pollJob(jobId, '/scrape-chapter', (current, total) => {
           setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: current, imageTotal: total });
         });
@@ -177,18 +179,21 @@ function useScrape() {
           continue;
         }
 
-        const folderName = chapter.title.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const folder = comicFolder.folder(folderName);
-        for (let j = 0; j < data.images.length; j++) {
-          const imgDataUrl = data.images[j];
-          const blob = dataUrlToBlob(imgDataUrl);
-          const ext = blob.type.split('/')[1] || 'jpg';
-          folder.file(`page_${String(j + 1).padStart(3, '0')}.${ext}`, blob);
-        }
+        // Create individual CBZ for this chapter
+        const cbzBlob = await createCbzBlob(data.images);
+        const cbzName = `${sanitizeFileName(chapter.title || `Chapter${i + 1}`)}.cbz`;
+        cbzBlobs.push({ name: cbzName, blob: cbzBlob });
       }
 
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${comicTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}.cbz`);
+      // Bundle all CBZs into a master ZIP archive
+      const masterZip = new JSZip();
+      for (const { name, blob } of cbzBlobs) {
+        masterZip.file(name, blob);
+      }
+
+      const content = await masterZip.generateAsync({ type: 'blob' });
+      const masterName = `${sanitizeFileName(comicTitle)}Full.zip`;
+      saveAs(content, masterName);
 
       setStatus('done');
       setDownloadingChapterIndex(null);
