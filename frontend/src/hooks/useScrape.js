@@ -115,23 +115,35 @@ function useScrape() {
 
       const content = await zip.generateAsync({ type: 'blob' });
 
-      // Build filename: ComicName+IssueNumber.cbz
-      const safeComicTitle = comicTitle.replace(/[^a-zA-Z0-9\s_-]/g, '').trim();
+      // Build filename: Abbreviated initials + issue/chapter number
+      // e.g. "Absolute Batman" -> "AB", "Absolute Batman Issue #1" -> "AB#1.cbz"
+      // e.g. "Absolute Batman 1 Noir Edition" -> "AB#1NE.cbz"
 
-      // Strip comic name prefix from chapter title to get just the issue/chapter part
-      let chapterPart = chapterTitle || `Chapter ${index + 1}`;
-      // Remove comic title prefix (case-insensitive, partial match)
-      const comicWords = safeComicTitle.split(/\s+/).filter(w => w.length > 2);
-      if (comicWords.length > 0) {
-        // Try to find where comic name ends and issue info begins
-        // Look for common patterns: "Issue #", "Chapter", "Vol.", "#"
-        const issueMatch = chapterPart.match(/(Issue\s+#?\d+|Chapter\s+\d+|Vol\.?\s*\d+|#\d+|\d+)$/i);
-        if (issueMatch) {
-          chapterPart = issueMatch[0];
-        }
+      function abbreviate(str) {
+        // Extract uppercase letters first, then title-case initials
+        const words = str.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).filter(Boolean);
+        // Try to get initials from each word (first letter uppercase)
+        let initials = words.map(w => w[0].toUpperCase()).join('');
+        return initials;
       }
-      const safeChapterPart = chapterPart.replace(/[^a-zA-Z0-9\s_-]/g, '').trim();
-      const fileName = `${safeComicTitle}+${safeChapterPart}.cbz`;
+
+      function extractIssueNum(title) {
+        // Extract just the number and any suffix like "NE" (Noir Edition)
+        const m = title.match(/#?(\d+)(?:\s+([A-Z]{1,4}))?/i);
+        if (m) {
+          let num = m[1];
+          let suffix = m[2] ? m[2].toUpperCase() : '';
+          return `#${num}${suffix}`;
+        }
+        // Fallback: just grab the last number
+        const fallback = title.match(/(\d+)/g);
+        if (fallback) return `#${fallback[fallback.length - 1]}`;
+        return '';
+      }
+
+      const comicInitials = abbreviate(comicTitle);
+      const issuePart = extractIssueNum(chapterTitle || '');
+      const fileName = `${comicInitials}${issuePart}.cbz`;
       saveAs(content, fileName);
 
       setStatus('done');
