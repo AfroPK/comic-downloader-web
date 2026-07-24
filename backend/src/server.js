@@ -147,8 +147,8 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
   res.json(response);
 });
 
-// Full comic download - server-side with disk storage
-const { ensureDir, sanitizeFileName, createCbzOnDisk, createMasterZip, cleanupDir, TMP_DIR } = require('./download-full');
+// Full comic download - server-side with disk storage and single browser
+const { ensureDir, sanitizeFileName, cleanupDir, downloadFullComic, TMP_DIR } = require('./download-full');
 
 app.post('/api/download-full', async (req, res) => {
   const { comicUrl } = req.body;
@@ -173,57 +173,29 @@ app.post('/api/download-full', async (req, res) => {
   // Run in background
   (async () => {
     try {
-      // Step 1: Scrape comic info
-      jobs.set(jobId, { ...jobs.get(jobId), status: 'scraping-info' });
-      const { scrapeComic } = getScraper(comicUrl);
-      const comicResult = await scrapeComic(comicUrl);
-      const comicTitle = comicResult.comicTitle || 'Comic';
-      const chapters = comicResult.chapters || [];
+      const result = await downloadFullComic(comicUrl, jobDir, (phase, current, total, detail) => {
+        const job = jobs.get(jobId);
+        if (!job) return;
 
-      if (chapters.length === 0) {
-        throw new Error('No chapters found');
-      }
-
-      // Step 2: Download each chapter as CBZ
-      jobs.set(jobId, { ...jobs.get(jobId), status: 'downloading-chapters', totalChapters: chapters.length, currentChapter: 0 });
-      const cbzPaths = [];
-      const { scrapeChapter } = getScraper(comicUrl);
-
-      for (let i = 0; i < chapters.length; i++) {
-        const chapter = chapters[i];
-        jobs.set(jobId, { ...jobs.get(jobId), currentChapter: i + 1, chapterTitle: chapter.title });
-
-        const chapterResult = await scrapeChapter(chapter.url);
-        if (!chapterResult.images || chapterResult.images.length === 0) {
-          console.warn(`[download-full] Skipping chapter ${chapter.title} - no images`);
-          continue;
+        if (phase === 'scraping-info') {
+          jobs.set(jobId, { ...job, status: 'scraping-info' });
+        } else if (phase === 'downloading-chapters') {
+          jobs.set(jobId, { ...job, status: 'downloading-chapters', currentChapter: current, totalChapters: total, chapterTitle: detail });
+        } else if (phase === 'downloading-images') {
+          jobs.set(jobId, { ...job, status: 'downloading-images', imageCurrent: current, imageTotal: total, chapterTitle: detail });
+        } else if (phase === 'bundling') {
+          jobs.set(jobId, { ...job, status: 'bundling' });
         }
+      });
 
-        const cbzName = `${sanitizeFileName(chapter.title || `Chapter${i + 1}`)}.cbz`;
-        const cbzPath = path.join(jobDir, cbzName);
-        await createCbzOnDisk(chapterResult.images, cbzPath);
-        cbzPaths.push({ name: cbzName, path: cbzPath });
-        console.log(`[download-full] Created CBZ: ${cbzName} (${chapterResult.images.length} images)`);
-      }
-
-      if (cbzPaths.length === 0) {
-        throw new Error('No chapters could be downloaded');
-      }
-
-      // Step 3: Bundle CBZs into master ZIP
-      jobs.set(jobId, { ...jobs.get(jobId), status: 'bundling' });
-      const masterName = `${sanitizeFileName(comicTitle)}Full.zip`;
-      const masterPath = path.join(jobDir, masterName);
-      await createMasterZip(cbzPaths, masterPath);
-      console.log(`[download-full] Created master ZIP: ${masterName} (${cbzPaths.length} CBZs)`);
-
-      // Step 4: Store result
-      jobs.set(jobId, { status: 'done', type: 'download-full', filePath: masterPath, fileName: masterName, error: null });
-
-      // Cleanup CBZ files (keep only master ZIP)
-      for (const { path: cbzPath } of cbzPaths) {
-        try { fs.unlinkSync(cbzPath); } catch (e) {}
-      }
+      jobs.set(jobId, {
+        status: 'done',
+        type: 'download-full',
+        filePath: result.filePath,
+        fileName: result.fileName,
+        comicTitle: result.comicTitle,
+        error: null,
+      });
     } catch (err) {
       console.error('[server] Full download error:', err);
       jobs.set(jobId, { ...jobs.get(jobId), status: 'error', error: err.message });
@@ -243,6 +215,8 @@ app.get('/api/download-full/:jobId', (req, res) => {
     currentChapter: job.currentChapter,
     totalChapters: job.totalChapters,
     chapterTitle: job.chapterTitle,
+    imageCurrent: job.imageCurrent,
+    imageTotal: job.imageTotal,
     fileName: job.fileName,
     error: job.error,
   });
