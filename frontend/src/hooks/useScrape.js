@@ -88,7 +88,7 @@ function useScrape() {
   }, []);
 
   const downloadChapter = useCallback(async (chapterUrl, chapterTitle, index) => {
-    setStatus('downloading');
+    setStatus('downloading-chapter');
     setDownloadingChapterIndex(index);
     setDownloadProgress({ current: 0, total: 0 });
     setError('');
@@ -165,7 +165,7 @@ function useScrape() {
   }, [comicTitle]);
 
   const downloadFullComic = useCallback(async () => {
-    setStatus('downloading');
+    setStatus('downloading-full');
     setError('');
 
     try {

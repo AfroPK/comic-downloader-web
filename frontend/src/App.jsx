@@ -26,7 +26,9 @@ function App() {
     await scrape(url.trim());
   };
 
-  const isLoading = status === 'scraping' || status === 'downloading';
+  const isLoading = status === 'scraping' || status === 'downloading-chapter' || status === 'downloading-full';
+  const isDownloadingChapter = status === 'downloading-chapter';
+  const isDownloadingFull = status === 'downloading-full';
   const hasResults = chapters.length > 0 && comicTitle;
 
   return (
@@ -65,7 +67,7 @@ function App() {
               <ChapterList
                 chapters={chapters}
                 onDownloadChapter={downloadChapter}
-                isDownloading={status === 'downloading'}
+                isDownloading={isDownloadingChapter}
                 downloadingChapterIndex={downloadingChapterIndex}
                 downloadProgress={downloadProgress}
               />
@@ -74,7 +76,7 @@ function App() {
                 comicTitle={comicTitle}
                 chapters={chapters}
                 onDownloadFull={downloadFullComic}
-                isDownloading={status === 'downloading'}
+                isDownloading={isDownloadingFull}
               />
             </>
           )}
