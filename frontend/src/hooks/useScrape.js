@@ -59,6 +59,7 @@ function useScrape() {
   const [status, setStatus] = useState('idle');
   const [comicTitle, setComicTitle] = useState('');
   const [chapters, setChapters] = useState([]);
+  const [comicUrl, setComicUrl] = useState('');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [downloadingChapterIndex, setDownloadingChapterIndex] = useState(null);
@@ -70,6 +71,7 @@ function useScrape() {
     setError('');
     setChapters([]);
     setComicTitle('');
+    setComicUrl(url);
     setProgress(0);
 
     const progressInterval = setInterval(() => {
@@ -152,9 +154,8 @@ function useScrape() {
 
     try {
       // Use the backend full-download endpoint (server-side, disk-based, low memory)
-      const comicUrl = chapters[0]?.url || '';
       if (!comicUrl) {
-        throw new Error('Could not determine comic URL');
+        throw new Error('No comic URL available. Please scrape the comic first.');
       }
 
       const startRes = await fetch(`${API_BASE}/download-full`, {
@@ -214,7 +215,7 @@ function useScrape() {
       setStatus('error');
       setDownloadingChapterIndex(null);
     }
-  }, [chapters]);
+  }, [chapters, comicUrl]);
 
   return {
     status,
