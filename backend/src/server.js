@@ -173,20 +173,28 @@ app.post('/api/download-full', async (req, res) => {
   // Run in background
   (async () => {
     try {
+      // Step 1: Scrape comic info using existing scraper (handles session setup)
+      jobs.set(jobId, { ...jobs.get(jobId), status: 'scraping-info' });
+      const { scrapeComic } = getScraper(comicUrl);
+      const comicInfo = await scrapeComic(comicUrl);
+
+      if (!comicInfo.chapters || comicInfo.chapters.length === 0) {
+        throw new Error('No chapters found');
+      }
+
+      // Step 2: Download all chapters using single browser + disk storage
       const result = await downloadFullComic(comicUrl, jobDir, (phase, current, total, detail) => {
         const job = jobs.get(jobId);
         if (!job) return;
 
-        if (phase === 'scraping-info') {
-          jobs.set(jobId, { ...job, status: 'scraping-info' });
-        } else if (phase === 'downloading-chapters') {
+        if (phase === 'downloading-chapters') {
           jobs.set(jobId, { ...job, status: 'downloading-chapters', currentChapter: current, totalChapters: total, chapterTitle: detail });
         } else if (phase === 'downloading-images') {
           jobs.set(jobId, { ...job, status: 'downloading-images', imageCurrent: current, imageTotal: total, chapterTitle: detail });
         } else if (phase === 'bundling') {
           jobs.set(jobId, { ...job, status: 'bundling' });
         }
-      });
+      }, comicInfo);
 
       jobs.set(jobId, {
         status: 'done',

@@ -225,7 +225,15 @@ async function createMasterZipFromDisk(cbzPaths, outputPath) {
 }
 
 // Main download function
-async function downloadFullComic(comicUrl, jobDir, onProgress) {
+async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
+  const { comicTitle, chapters } = comicInfo;
+
+  if (!chapters || chapters.length === 0) {
+    throw new Error('No chapters provided');
+  }
+
+  console.log(`[download-full] Comic: ${comicTitle}, ${chapters.length} chapters`);
+
   const isXoxo = comicUrl.includes('xoxocomic.com');
   const baseUrl = isXoxo ? 'https://xoxocomic.com' : (() => {
     try { return new URL(comicUrl).origin; } catch { return ''; }
@@ -235,56 +243,9 @@ async function downloadFullComic(comicUrl, jobDir, onProgress) {
   let page = null;
 
   try {
-    // Step 1: Scrape comic info to get chapters
-    onProgress('scraping-info', 0, 0);
+    // Open one browser for all chapter URL extraction
     browser = await createBrowser();
     page = await setupPage(browser, `${baseUrl}/`);
-
-    // Scrape comic page for chapters
-    await page.goto(comicUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000);
-
-    let comicTitle = '';
-    let chapters = [];
-
-    if (isXoxo) {
-      comicTitle = await page.evaluate(() => {
-        const h1 = document.querySelector('.title h1');
-        return h1 ? h1.textContent.trim() : '';
-      });
-      const chapterDivs = await page.evaluate(() => {
-        const container = document.getElementById('nt_listchapter');
-        if (!container) return [];
-        const divs = container.querySelectorAll('.chapter');
-        return Array.from(divs).map(div => {
-          const a = div.querySelector('a');
-          return a ? { title: a.textContent.trim(), url: a.href } : null;
-        }).filter(ch => ch && ch.title && ch.url);
-      });
-      chapters = chapterDivs;
-    } else {
-      // Generic scraper
-      comicTitle = await page.evaluate(() => document.title.replace(/\s*-\s*Read\s*Free.*/i, '').trim());
-      const links = await page.evaluate(() => {
-        const all = document.querySelectorAll('a[href*="/chapter/"], a[href*="/ch/"], a[href*="/read/"]');
-        const seen = new Set();
-        return Array.from(all).map(a => {
-          const url = a.href;
-          const title = a.textContent.trim();
-          if (seen.has(url)) return null;
-          seen.add(url);
-          return { title, url };
-        }).filter(Boolean);
-      });
-      chapters = links;
-    }
-
-    if (!comicTitle) comicTitle = 'Comic';
-    if (chapters.length === 0) {
-      throw new Error('No chapters found');
-    }
-
-    console.log(`[download-full] Comic: ${comicTitle}, ${chapters.length} chapters`);
 
     // Step 2: Download each chapter
     onProgress('downloading-chapters', 0, chapters.length);
