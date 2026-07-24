@@ -21,6 +21,18 @@ const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../../
 
 const BASE_URL = 'https://xoxocomic.com';
 
+// Rotate user agents to avoid fingerprinting
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.2478.67',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+];
+
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 async function createBrowser() {
   const args = [
     '--no-sandbox',
@@ -29,6 +41,13 @@ async function createBrowser() {
     '--single-process',
     '--no-zygote',
     '--disable-blink-features=AutomationControlled',
+    '--disable-web-security',
+    '--disable-features=IsolateOrigins,site-per-process',
+    '--disable-site-isolation-trials',
+    '--disable-extensions',
+    '--disable-plugins',
+    '--window-size=1920,1080',
+    '--start-maximized',
   ];
 
   const proxyHost = process.env.PROXY_HOST;
@@ -57,34 +76,90 @@ async function setupPage(browser) {
     await page.authenticate({ username: proxyUsername, password: proxyPassword });
   }
 
-  await page.setViewport({ width: 1920, height: 1080 });
-  await page.setUserAgent(
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-  );
+  // Randomize viewport slightly to avoid fingerprinting
+  const width = 1920 + Math.floor(Math.random() * 100);
+  const height = 1080 + Math.floor(Math.random() * 100);
+  await page.setViewport({ width, height });
+
+  await page.setUserAgent(getRandomUserAgent());
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Referer': `${BASE_URL}/`,
+    'sec-ch-ua': '"Google Chrome";v="125", "Chromium";v="125"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-User': '?1',
+  });
+
+  // Override navigator.webdriver to false
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    window.chrome = { runtime: {} };
   });
 
   return page;
 }
 
-async function scrapeComic(url) {
+function isBlockedPage(title, html) {
+  const blockedIndicators = [
+    'is blocked',
+    'blocked',
+    'access denied',
+    'forbidden',
+    'cloudflare',
+    'captcha',
+    'ddos',
+    'security check',
+  ];
+  const lowerTitle = title.toLowerCase();
+  const lowerHtml = html.toLowerCase();
+  return blockedIndicators.some(ind => lowerTitle.includes(ind) || lowerHtml.includes(ind));
+}
+
+async function scrapeComic(url, retryCount = 0) {
+  const maxRetries = 2;
   const browser = await createBrowser();
   const page = await setupPage(browser);
 
   try {
+    // Step 1: Visit homepage to warm up session
+    console.log('[xoxocomic] Visiting homepage to establish session...');
+    try {
+      await page.goto(`${BASE_URL}/`, { waitUntil: 'networkidle2', timeout: 30000 });
+      await page.waitForTimeout(2000 + Math.random() * 2000);
+    } catch (e) {
+      console.log('[xoxocomic] Homepage visit timed out, continuing');
+    }
+
+    // Step 2: Navigate to comic page
     console.log(`[xoxocomic] Loading comic page: ${url}`);
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(3000 + Math.random() * 2000);
 
     const comicTitle = await page.evaluate(() => {
       const titleEl = document.querySelector('h1');
       return titleEl ? titleEl.textContent.trim() : 'Unknown Comic';
     });
 
+    const pageHtml = await page.evaluate(() => document.documentElement.innerHTML.substring(0, 500));
     console.log(`[xoxocomic] Comic title: ${comicTitle}`);
+
+    // Check if blocked
+    if (isBlockedPage(comicTitle, pageHtml)) {
+      await browser.close();
+      if (retryCount < maxRetries) {
+        console.log(`[xoxocomic] Blocked detected, retrying (${retryCount + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+        return scrapeComic(url, retryCount + 1);
+      }
+      throw new Error('Access blocked by xoxocomic. Please try again later.');
+    }
 
     const chapters = await page.evaluate(() => {
       const container = document.getElementById('nt_listchapter');
@@ -103,11 +178,17 @@ async function scrapeComic(url) {
     return { comicTitle, chapters };
   } catch (err) {
     await browser.close();
+    if (retryCount < maxRetries && err.message.includes('blocked')) {
+      console.log(`[xoxocomic] Retrying after error (${retryCount + 1}/${maxRetries})...`);
+      await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+      return scrapeComic(url, retryCount + 1);
+    }
     throw err;
   }
 }
 
-async function scrapeChapter(chapterUrl) {
+async function scrapeChapter(chapterUrl, retryCount = 0) {
+  const maxRetries = 2;
   const browser = await createBrowser();
   const page = await setupPage(browser);
 
@@ -116,7 +197,21 @@ async function scrapeChapter(chapterUrl) {
 
     // First, get the total page count
     await page.goto(chapterUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(3000 + Math.random() * 2000);
+
+    const pageHtml = await page.evaluate(() => document.documentElement.innerHTML.substring(0, 500));
+    const pageTitle = await page.evaluate(() => document.title);
+
+    // Check if blocked
+    if (isBlockedPage(pageTitle, pageHtml)) {
+      await browser.close();
+      if (retryCount < maxRetries) {
+        console.log(`[xoxocomic] Chapter blocked, retrying (${retryCount + 1}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+        return scrapeChapter(chapterUrl, retryCount + 1);
+      }
+      throw new Error('Access blocked by xoxocomic. Please try again later.');
+    }
 
     const pageInfo = await page.evaluate(() => {
       const html = document.documentElement.innerHTML;
@@ -135,7 +230,7 @@ async function scrapeChapter(chapterUrl) {
 
       if (pageNum > 1) {
         await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(2000 + Math.random() * 1000);
       }
 
       const imgData = await page.evaluate(() => {
@@ -170,7 +265,7 @@ async function scrapeChapter(chapterUrl) {
             'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
             'Referer': chapterUrl,
             'Cookie': cookieHeader,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            'User-Agent': getRandomUserAgent(),
           },
         });
 
@@ -191,6 +286,11 @@ async function scrapeChapter(chapterUrl) {
     return { images: base64Images };
   } catch (err) {
     await browser.close();
+    if (retryCount < maxRetries && (err.message.includes('blocked') || err.message.includes('timeout'))) {
+      console.log(`[xoxocomic] Retrying chapter after error (${retryCount + 1}/${maxRetries})...`);
+      await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+      return scrapeChapter(chapterUrl, retryCount + 1);
+    }
     throw err;
   }
 }
