@@ -161,15 +161,20 @@ async function scrapeComic(url, retryCount = 0) {
       throw new Error('Access blocked by xoxocomic. Please try again later.');
     }
 
+    // Extract chapters - look for .chapter a links inside #nt_listchapter
     const chapters = await page.evaluate(() => {
       const container = document.getElementById('nt_listchapter');
       if (!container) return [];
 
-      const links = container.querySelectorAll('a');
-      return Array.from(links).map(a => ({
-        title: a.textContent.trim(),
-        url: a.href,
-      })).filter(ch => ch.title && ch.url);
+      // Only get links inside .chapter divs to avoid ads
+      const chapterDivs = container.querySelectorAll('.chapter');
+      return Array.from(chapterDivs).map(div => {
+        const a = div.querySelector('a');
+        return a ? {
+          title: a.textContent.trim(),
+          url: a.href,
+        } : null;
+      }).filter(ch => ch && ch.title && ch.url);
     });
 
     console.log(`[xoxocomic] Found ${chapters.length} chapters`);
@@ -193,10 +198,11 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
   const page = await setupPage(browser);
 
   try {
-    console.log(`[xoxocomic] Loading chapter: ${chapterUrl}`);
+    // Use /all suffix to get all pages at once
+    const allPagesUrl = chapterUrl.endsWith('/all') ? chapterUrl : `${chapterUrl}/all`;
+    console.log(`[xoxocomic] Loading chapter (all pages): ${allPagesUrl}`);
 
-    // First, get the total page count
-    await page.goto(chapterUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(allPagesUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForTimeout(3000 + Math.random() * 2000);
 
     const pageHtml = await page.evaluate(() => document.documentElement.innerHTML.substring(0, 500));
@@ -213,51 +219,26 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
       throw new Error('Access blocked by xoxocomic. Please try again later.');
     }
 
-    const pageInfo = await page.evaluate(() => {
-      const html = document.documentElement.innerHTML;
-      const totalMatch = html.match(/of\s+(\d+)/);
-      const totalPages = totalMatch ? parseInt(totalMatch[1]) : 1;
-      return { totalPages };
+    // Extract all images from the /all page
+    const images = await page.evaluate(() => {
+      const imgs = document.querySelectorAll('img[data-original]');
+      return Array.from(imgs).map(img => img.dataset.original).filter(src => src && src.length > 0);
     });
 
-    console.log(`[xoxocomic] Total pages: ${pageInfo.totalPages}`);
+    console.log(`[xoxocomic] Found ${images.length} images on all-pages view`);
 
-    const images = [];
-
-    // Collect images from all pages
-    for (let pageNum = 1; pageNum <= pageInfo.totalPages; pageNum++) {
-      const pageUrl = pageNum === 1 ? chapterUrl : `${chapterUrl}/${pageNum}`;
-
-      if (pageNum > 1) {
-        await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-        await page.waitForTimeout(2000 + Math.random() * 1000);
-      }
-
-      const imgData = await page.evaluate(() => {
-        const img = document.querySelector('img[data-original]');
-        if (img) {
-          return {
-            src: img.dataset.original,
-            alt: img.alt,
-          };
-        }
-        return null;
-      });
-
-      if (imgData) {
-        images.push(imgData.src);
-        console.log(`[xoxocomic] Found image ${pageNum}/${pageInfo.totalPages}`);
-      }
+    if (images.length === 0) {
+      await browser.close();
+      throw new Error('No images found for this chapter');
     }
 
-    console.log(`[xoxocomic] Collected ${images.length} images`);
-
-    // Download images
+    // Download images with proper headers
     const base64Images = [];
     const cookies = await page.cookies();
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-    for (const imgUrl of images) {
+    for (let i = 0; i < images.length; i++) {
+      const imgUrl = images[i];
       try {
         const response = await fetch(imgUrl, {
           method: 'GET',
@@ -269,18 +250,27 @@ async function scrapeChapter(chapterUrl, retryCount = 0) {
           },
         });
 
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.error(`[xoxocomic] Failed to fetch image ${i + 1}: HTTP ${response.status}`);
+          continue;
+        }
 
         const buffer = Buffer.from(await response.arrayBuffer());
-        if (buffer.length < 100) continue;
+        if (buffer.length < 100) {
+          console.error(`[xoxocomic] Image ${i + 1} too small`);
+          continue;
+        }
 
         const ct = (response.headers.get('content-type') || 'image/jpeg').split(';')[0];
         const b64 = buffer.toString('base64');
         base64Images.push(`data:${ct};base64,${b64}`);
+        console.log(`[xoxocomic] Fetched image ${i + 1}/${images.length} (${buffer.length} bytes)`);
       } catch (err) {
-        console.error(`[xoxocomic] Failed to fetch image: ${err.message}`);
+        console.error(`[xoxocomic] Error fetching image ${i + 1}:`, err.message);
       }
     }
+
+    console.log(`[xoxocomic] Converted ${base64Images.length}/${images.length} images`);
 
     await browser.close();
     return { images: base64Images };

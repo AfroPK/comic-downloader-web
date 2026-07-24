@@ -1,0 +1,354 @@
+- generic [active] [ref=f5e1]:
+  - banner [ref=f5e2]:
+    - generic [ref=f5e4]:
+      - generic [ref=f5e5]:
+        - link [ref=f5e7] [cursor=pointer]:
+          - /url: /
+          - img "Xoxocomic - Read Comics Online for Free" [ref=f5e8]
+        - generic [ref=f5e11]:
+          - textbox "Search comics" [ref=f5e12]:
+            - /placeholder: Search comics...
+          - button "Search" [ref=f5e14] [cursor=pointer]
+        - text:  
+      - list [ref=f5e15]:
+        - listitem [ref=f5e16]:
+          - link "Login" [ref=f5e17] [cursor=pointer]:
+            - /url: https://xoxocomic.com/login
+          - text: /
+        - listitem [ref=f5e18]:
+          - link "Register" [ref=f5e19] [cursor=pointer]:
+            - /url: https://xoxocomic.com/register
+  - navigation "Main Navigation" [ref=f5e20]:
+    - list [ref=f5e23]:
+      - listitem [ref=f5e24]:
+        - link "Home" [ref=f5e25] [cursor=pointer]:
+          - /url: https://xoxocomic.com
+          - generic [ref=f5e26]: 
+      - listitem [ref=f5e27]:
+        - link "Hot Comics" [ref=f5e28] [cursor=pointer]:
+          - /url: https://xoxocomic.com/hot-comic
+          - text: Hot
+      - listitem [ref=f5e29]:
+        - link "Followed Follow" [ref=f5e30] [cursor=pointer]:
+          - /url: https://xoxocomic.com/follow-comic
+          - text: Follow
+      - listitem [ref=f5e31]:
+        - link "Comic List" [ref=f5e32] [cursor=pointer]:
+          - /url: https://xoxocomic.com/comic-list
+      - listitem [ref=f5e33]:
+        - button "Genres" [ref=f5e34] [cursor=pointer]:
+          - text: Genres
+          - generic [ref=f5e35]: 
+      - listitem [ref=f5e36]:
+        - link "Daily Updates" [ref=f5e37] [cursor=pointer]:
+          - /url: https://xoxocomic.com/comic-update
+      - listitem [ref=f5e38]:
+        - link "New Comics" [ref=f5e39] [cursor=pointer]:
+          - /url: https://xoxocomic.com/new-comic
+      - listitem [ref=f5e40]:
+        - link "Popular Comics" [ref=f5e41] [cursor=pointer]:
+          - /url: https://xoxocomic.com/popular-comic
+  - main [ref=f5e42]:
+    - generic [ref=f5e46]:
+      - generic [ref=f5e47]:
+        - generic [ref=f5e48]:
+          - list [ref=f5e49]:
+            - listitem [ref=f5e50]:
+              - link "Home" [ref=f5e51] [cursor=pointer]:
+                - /url: https://xoxocomic.com
+            - listitem [ref=f5e52]:
+              - text: »
+              - link "Comic List" [ref=f5e53] [cursor=pointer]:
+                - /url: https://xoxocomic.com/comic-list
+            - listitem [ref=f5e54]:
+              - text: »
+              - link "Absolute Batman" [ref=f5e55] [cursor=pointer]:
+                - /url: https://xoxocomic.com/comic/absolute-batman
+            - listitem [ref=f5e56]:
+              - text: »
+              - 'link "Issue #1" [ref=f5e57] [cursor=pointer]':
+                - /url: https://xoxocomic.com/comic/absolute-batman/issue-1
+          - 'heading "Absolute Batman - Issue #1 Page 1" [level=1] [ref=f5e58]'
+          - generic [ref=f5e59]: "[Updated at: 2024-10-09 09:43:44]"
+          - heading [level=2] [ref=f5e60]:
+            - link "Read Absolute Batman Online Free" [ref=f5e61] [cursor=pointer]:
+              - /url: https://xoxocomic.com/comic/absolute-batman
+          - paragraph [ref=f5e62]: "Dive into Absolute Batman Issue #1 for an exciting adventure. Explore captivating storylines and stunning artwork!"
+          - generic [ref=f5e63]: Share to support Xoxocomic
+        - generic [ref=f5e64]:
+          - generic [ref=f5e65]:
+            - generic [ref=f5e66]: 
+            - text: Click on Absolute Batman image go to next page or use your right (→) & left (←) arrow keys on your keyboard go to next/prev page.
+          - generic [ref=f5e67]:
+            - link "" [ref=f5e68] [cursor=pointer]:
+              - /url: /
+            - link "" [ref=f5e70] [cursor=pointer]:
+              - /url: https://xoxocomic.com/comic/absolute-batman
+            - combobox [ref=f5e72]:
+              - 'option "Absolute Batman Issue #1" [selected]'
+              - option "Absolute Batman 1 Noir Edition"
+              - 'option "Absolute Batman Issue #2"'
+              - 'option "Absolute Batman Issue #3"'
+              - 'option "Absolute Batman Issue #4"'
+              - 'option "Absolute Batman Issue #5"'
+              - 'option "Absolute Batman Issue #6"'
+              - 'option "Absolute Batman Issue #7"'
+              - 'option "Absolute Batman Issue #8"'
+              - 'option "Absolute Batman Issue #9"'
+              - 'option "Absolute Batman Issue #10"'
+              - 'option "Absolute Batman Issue #11"'
+              - 'option "Absolute Batman Issue #12"'
+              - 'option "Absolute Batman Issue #13"'
+              - option "Absolute Batman Annual 2025"
+              - 'option "Absolute Batman Issue #14"'
+              - 'option "Absolute Batman Issue #15"'
+              - 'option "Absolute Batman Issue #16"'
+              - 'option "Absolute Batman Issue #17"'
+              - 'option "Absolute Batman Issue #18"'
+              - 'option "Absolute Batman Issue #19"'
+              - 'option "Absolute Batman Issue #20"'
+            - combobox [ref=f5e73]:
+              - option "One page" [selected]
+              - option "All pages"
+            - generic [ref=f5e74]:
+              - combobox [ref=f5e75]:
+                - option "1" [selected]
+                - option "2"
+                - option "3"
+                - option "4"
+                - option "5"
+                - option "6"
+                - option "7"
+                - option "8"
+                - option "9"
+                - option "10"
+                - option "11"
+                - option "12"
+                - option "13"
+                - option "14"
+                - option "15"
+                - option "16"
+                - option "17"
+                - option "18"
+                - option "19"
+                - option "20"
+                - option "21"
+                - option "22"
+                - option "23"
+                - option "24"
+                - option "25"
+                - option "26"
+                - option "27"
+                - option "28"
+                - option "29"
+                - option "30"
+                - option "31"
+                - option "32"
+                - option "33"
+                - option "34"
+                - option "35"
+                - option "36"
+                - option "37"
+                - option "38"
+                - option "39"
+                - option "40"
+                - option "41"
+                - option "42"
+                - option "43"
+                - option "44"
+                - option "45"
+                - option "46"
+                - option "47"
+                - option "48"
+                - option "49"
+                - option "50"
+                - option "51"
+                - option "52"
+                - option "53"
+                - option "54"
+                - option "55"
+                - option "56"
+                - option "57"
+                - option "58"
+              - generic [ref=f5e76]: of 58
+              - link "Next →" [ref=f5e77] [cursor=pointer]:
+                - /url: https://xoxocomic.com/comic/absolute-batman/issue-1/2
+      - link [ref=f5e81] [cursor=pointer]:
+        - /url: https://xoxocomic.com/comic/absolute-batman/issue-1/2
+        - 'img "Absolute Batman Issue #1 - Page 1" [ref=f5e82]'
+      - generic [ref=f5e83]:
+        - link "+" [ref=f5e84] [cursor=pointer]:
+          - /url: javascript:void(0)
+        - link "-" [ref=f5e85] [cursor=pointer]:
+          - /url: javascript:void(0)
+      - generic [ref=f5e86]:
+        - generic [ref=f5e88]:
+          - link "" [ref=f5e89] [cursor=pointer]:
+            - /url: https://www.facebook.com/sharer.php?u=https://xoxocomic.com/comic/absolute-batman/issue-1
+          - link "" [ref=f5e91] [cursor=pointer]:
+            - /url: "https://twitter.com/share?url=https://xoxocomic.com/comic/absolute-batman/issue-1&text=Absolute Batman - Issue #1 Page 1 | Xoxocomic&hashtags=comic,Xoxocomic"
+          - link "" [ref=f5e93] [cursor=pointer]:
+            - /url: "https://pinterest.com/pin/create/bookmarklet/?media=https://xoxocomic.com/comic/absolute-batman/issue-1/294415/1.jpg&url=https://xoxocomic.com/comic/absolute-batman/issue-1&is_video=false&description=Absolute Batman - Issue #1 Page 1 | Xoxocomic"
+          - link "" [ref=f5e95] [cursor=pointer]:
+            - /url: "https://reddit.com/submit?url=https://xoxocomic.com/comic/absolute-batman/issue-1&title=Absolute Batman - Issue #1 Page 1 | Xoxocomic"
+        - generic [ref=f5e97]:
+          - generic [ref=f5e98]:
+            - combobox [ref=f5e99]:
+              - option "1" [selected]
+              - option "2"
+              - option "3"
+              - option "4"
+              - option "5"
+              - option "6"
+              - option "7"
+              - option "8"
+              - option "9"
+              - option "10"
+              - option "11"
+              - option "12"
+              - option "13"
+              - option "14"
+              - option "15"
+              - option "16"
+              - option "17"
+              - option "18"
+              - option "19"
+              - option "20"
+              - option "21"
+              - option "22"
+              - option "23"
+              - option "24"
+              - option "25"
+              - option "26"
+              - option "27"
+              - option "28"
+              - option "29"
+              - option "30"
+              - option "31"
+              - option "32"
+              - option "33"
+              - option "34"
+              - option "35"
+              - option "36"
+              - option "37"
+              - option "38"
+              - option "39"
+              - option "40"
+              - option "41"
+              - option "42"
+              - option "43"
+              - option "44"
+              - option "45"
+              - option "46"
+              - option "47"
+              - option "48"
+              - option "49"
+              - option "50"
+              - option "51"
+              - option "52"
+              - option "53"
+              - option "54"
+              - option "55"
+              - option "56"
+              - option "57"
+              - option "58"
+            - generic [ref=f5e100]: of 58
+            - link "Next →" [ref=f5e101] [cursor=pointer]:
+              - /url: https://xoxocomic.com/comic/absolute-batman/issue-1/2
+          - generic [ref=f5e102]:
+            - paragraph [ref=f5e104]:
+              - strong [ref=f5e105]: Note
+              - text: ": If you find missing chapters, pages, or errors, please"
+              - link "Report us." [ref=f5e106] [cursor=pointer]:
+                - /url: javascript:void(0)
+            - paragraph [ref=f5e107]:
+              - strong [ref=f5e108]: You can choose reading type 'One page'/'All pages' on top.
+            - generic [ref=f5e109]:
+              - 'heading "Absolute Batman Issue #1 - Chapter Navigation" [level=3] [ref=f5e110]'
+              - paragraph [ref=f5e111]: "Continue the story:"
+              - generic [ref=f5e112]:
+                - text: "Next Issue #:"
+                - link "Absolute Batman 1 Noir Edition" [ref=f5e113] [cursor=pointer]:
+                  - /url: https://xoxocomic.com/comic/absolute-batman/1-noir-edition
+              - generic [ref=f5e114]:
+                - text: "Latest Issue #:"
+                - 'link "Absolute Batman Issue #20" [ref=f5e115] [cursor=pointer]':
+                  - /url: https://xoxocomic.com/comic/absolute-batman/issue-20
+              - generic [ref=f5e116]:
+                - text: "Upcoming Issue #:"
+                - 'link "Absolute Batman Issue #21" [ref=f5e117] [cursor=pointer]':
+                  - /url: https://xoxocomic.com/comic/absolute-batman/issue-21
+  - contentinfo [ref=f5e118]:
+    - generic [ref=f5e120]:
+      - generic [ref=f5e121]:
+        - link [ref=f5e122] [cursor=pointer]:
+          - /url: https://xoxocomic.com
+          - img "Logo of Read Comic Online - Explore Comics for Free" [ref=f5e123]
+        - paragraph [ref=f5e124]:
+          - text: Follow Us
+          - link "Visit our Facebook page" [ref=f5e125] [cursor=pointer]:
+            - /url: https://www.facebook.com/XO-Network-2062020177347532/
+            - generic [ref=f5e126]: 
+          - link "Visit our Pinterest profile" [ref=f5e127] [cursor=pointer]:
+            - /url: https://xoxocomic.com
+            - generic [ref=f5e128]: 
+        - paragraph [ref=f5e129]:
+          - text: Copyright © 2026 Xoxocomic - All rights reserved.
+          - link "" [ref=f5e130] [cursor=pointer]:
+            - /url: https://xoxocomic.com/feed
+      - generic [ref=f5e135]:
+        - heading "Explore Comic Genres" [level=4] [ref=f5e136]
+        - list [ref=f5e137]:
+          - listitem [ref=f5e138]:
+            - link "Explore Marvel Comics" [ref=f5e139] [cursor=pointer]:
+              - /url: https://xoxocomic.com/marvel-comic
+              - text: Marvel
+          - listitem [ref=f5e140]:
+            - link "Explore DC Comics Comics" [ref=f5e141] [cursor=pointer]:
+              - /url: https://xoxocomic.com/dc-comics-comic
+              - text: DC Comics
+          - listitem [ref=f5e142]:
+            - link "Explore Dark Horse Comics" [ref=f5e143] [cursor=pointer]:
+              - /url: https://xoxocomic.com/dark-horse-comic
+              - text: Dark Horse
+          - listitem [ref=f5e144]:
+            - link "Explore Comedy Comics" [ref=f5e145] [cursor=pointer]:
+              - /url: https://xoxocomic.com/comedy-comic
+              - text: Comedy
+          - listitem [ref=f5e146]:
+            - link "Explore Graphic Novels Comics" [ref=f5e147] [cursor=pointer]:
+              - /url: https://xoxocomic.com/graphic-novels-comic
+              - text: Graphic Novels
+          - listitem [ref=f5e148]:
+            - link "Explore Horror Comics" [ref=f5e149] [cursor=pointer]:
+              - /url: https://xoxocomic.com/horror-comic
+              - text: Horror
+          - listitem [ref=f5e150]:
+            - link "Explore Leading Ladies Comics" [ref=f5e151] [cursor=pointer]:
+              - /url: https://xoxocomic.com/leading-ladies-comic
+              - text: Leading Ladies
+          - listitem [ref=f5e152]:
+            - link "Explore Movies & TV Comics" [ref=f5e153] [cursor=pointer]:
+              - /url: https://xoxocomic.com/movies-tv-comic
+              - text: Movies & TV
+          - listitem [ref=f5e154]:
+            - link "Explore Mystery Comics" [ref=f5e155] [cursor=pointer]:
+              - /url: https://xoxocomic.com/mystery-comic
+              - text: Mystery
+          - listitem [ref=f5e156]:
+            - link "Explore Robots Comics" [ref=f5e157] [cursor=pointer]:
+              - /url: https://xoxocomic.com/robots-comic
+              - text: Robots
+          - listitem [ref=f5e158]:
+            - link "Explore Sci-Fi Comics" [ref=f5e159] [cursor=pointer]:
+              - /url: https://xoxocomic.com/sci-fi-comic
+              - text: Sci-Fi
+          - listitem [ref=f5e160]:
+            - link "Explore Superhero Comics" [ref=f5e161] [cursor=pointer]:
+              - /url: https://xoxocomic.com/superhero-comic
+              - text: Superhero
+          - listitem [ref=f5e162]:
+            - link "Explore Zombies Comics" [ref=f5e163] [cursor=pointer]:
+              - /url: https://xoxocomic.com/zombies-comic
+              - text: Zombies
+  - text:   / 

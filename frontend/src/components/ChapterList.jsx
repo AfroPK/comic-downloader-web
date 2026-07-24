@@ -21,7 +21,7 @@ function ChapterList({ chapters, onDownloadChapter, isDownloading, downloadingCh
               </div>
               <button
                 className="btn btn-success"
-                onClick={() => onDownloadChapter(index)}
+                onClick={() => onDownloadChapter(chapter.url, index)}
                 disabled={isDownloading}
               >
                 {isThisChapterDownloading ? (
