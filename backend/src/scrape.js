@@ -4,7 +4,15 @@ puppeteer.use(StealthPlugin);
 
 const path = require('path');
 const fs = require('fs');
-const { TARGET_SITE } = require('./config');
+
+function getBaseUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch (e) {
+    return '';
+  }
+}
 
 function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
@@ -52,7 +60,9 @@ async function scrapeComic(url) {
     throw new Error('Could not extract comic ID from URL');
   }
 
+  const baseUrl = getBaseUrl(url);
   console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
+  console.log('[scrape] Base URL:', baseUrl);
   console.log('[scrape] PROXY_HOST env:', process.env.PROXY_HOST || 'not set');
 
   const args = [
@@ -94,13 +104,13 @@ async function scrapeComic(url) {
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Referer': `${TARGET_SITE}/`,
+    'Referer': `${baseUrl}/`,
   });
 
   // Step 1: Visit homepage to establish session/cookies
   console.log('[scrape] Visiting homepage to establish session...');
   try {
-    await page.goto(`${TARGET_SITE}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForTimeout(3000);
   } catch (e) {
     console.log('[scrape] Homepage visit timed out, continuing');
@@ -125,7 +135,7 @@ async function scrapeComic(url) {
   } catch (e) {}
 
   // Step 3: Try to find reader link, or construct it
-  let readerUrl = `${TARGET_SITE}/reader/${comicId}`;
+  let readerUrl = `${baseUrl}/reader/${comicId}`;
   try {
     const foundReader = await page.evaluate(() => {
       const el = document.querySelector('a[href*="/reader/"]');
@@ -161,7 +171,7 @@ async function scrapeComic(url) {
     for (const chapter of data.chapters) {
       chapters.push({
         title: chapter.title?.trim() || `Chapter ${chapter.id}`,
-        url: `${TARGET_SITE}/reader/${comicId}/${chapter.id}`,
+        url: `${baseUrl}/reader/${comicId}/${chapter.id}`,
         chapterId: chapter.id,
       });
     }

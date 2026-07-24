@@ -4,7 +4,15 @@ puppeteer.use(StealthPlugin);
 
 const path = require('path');
 const fs = require('fs');
-const { TARGET_SITE } = require('./config');
+
+function getBaseUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch (e) {
+    return '';
+  }
+}
 
 function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
@@ -21,7 +29,9 @@ const executablePath = findExecutablePath();
 const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../node_modules/.cache/puppeteer');
 
 async function scrapeChapter(chapterUrl) {
+  const baseUrl = getBaseUrl(chapterUrl);
   console.log('[scrape-chapter] Using Chrome path:', executablePath || 'default Puppeteer path');
+  console.log('[scrape-chapter] Base URL:', baseUrl);
 
   const args = [
     '--no-sandbox',
@@ -62,14 +72,14 @@ async function scrapeChapter(chapterUrl) {
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Referer': `${TARGET_SITE}/`,
+    'Referer': `${baseUrl}/`,
   });
 
   console.log(`[scrape-chapter] Loading ${chapterUrl}`);
 
   // Visit homepage first to establish cookies
   try {
-    await page.goto(`${TARGET_SITE}/`, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForTimeout(3000);
   } catch (e) {
     console.log('[scrape-chapter] Homepage visit timed out, continuing');
