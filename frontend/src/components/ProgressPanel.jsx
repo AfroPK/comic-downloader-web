@@ -96,7 +96,7 @@ function ProgressPanel({ progress }) {
   useEffect(() => {
     const interval = setInterval(() => {
       setIndex((prev) => getRandomIndex(ONE_LINERS.length, prev));
-    }, 2500);
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 

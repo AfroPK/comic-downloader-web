@@ -82,7 +82,7 @@ function useScrape() {
     }
   }, []);
 
-  const downloadChapter = useCallback(async (chapterUrl, index) => {
+  const downloadChapter = useCallback(async (chapterUrl, chapterTitle, index) => {
     setStatus('downloading');
     setDownloadingChapterIndex(index);
     setError('');
@@ -114,8 +114,25 @@ function useScrape() {
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
-      const chapterName = chapterUrl.split('/').pop() || 'chapter';
-      saveAs(content, `chapter_${chapterName}.cbz`);
+
+      // Build filename: ComicName+IssueNumber.cbz
+      const safeComicTitle = comicTitle.replace(/[^a-zA-Z0-9\s_-]/g, '').trim();
+
+      // Strip comic name prefix from chapter title to get just the issue/chapter part
+      let chapterPart = chapterTitle || `Chapter ${index + 1}`;
+      // Remove comic title prefix (case-insensitive, partial match)
+      const comicWords = safeComicTitle.split(/\s+/).filter(w => w.length > 2);
+      if (comicWords.length > 0) {
+        // Try to find where comic name ends and issue info begins
+        // Look for common patterns: "Issue #", "Chapter", "Vol.", "#"
+        const issueMatch = chapterPart.match(/(Issue\s+#?\d+|Chapter\s+\d+|Vol\.?\s*\d+|#\d+|\d+)$/i);
+        if (issueMatch) {
+          chapterPart = issueMatch[0];
+        }
+      }
+      const safeChapterPart = chapterPart.replace(/[^a-zA-Z0-9\s_-]/g, '').trim();
+      const fileName = `${safeComicTitle}+${safeChapterPart}.cbz`;
+      saveAs(content, fileName);
 
       setStatus('done');
       setDownloadingChapterIndex(null);
@@ -124,7 +141,7 @@ function useScrape() {
       setStatus('error');
       setDownloadingChapterIndex(null);
     }
-  }, []);
+  }, [comicTitle]);
 
   const downloadFullComic = useCallback(async () => {
     setStatus('downloading');
