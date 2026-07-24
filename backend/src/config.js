@@ -13,11 +13,13 @@ function getAllowedSites() {
 }
 
 function getSiteForUrl(url) {
+  if (typeof url !== 'string') return undefined;
   const sites = getAllowedSites();
   return sites.find(site => url.includes(new URL(site).hostname));
 }
 
 function isAllowedUrl(url) {
+  if (typeof url !== 'string') return false;
   return getAllowedSites().some(site => url.includes(new URL(site).hostname));
 }
 
