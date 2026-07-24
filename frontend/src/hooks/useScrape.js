@@ -159,23 +159,45 @@ function useScrape() {
         setDownloadingChapterIndex(i);
         setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: 0, imageTotal: 0 });
 
-        const response = await fetch(`${API_BASE}/scrape-chapter`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chapterUrl: chapter.url }),
-        });
-
-        if (!response.ok) {
-          console.warn(`Skipping chapter ${chapter.title} - request failed`);
-          continue;
+        // Rate limit: max 5 requests per minute, so wait 15s between chapters
+        if (i > 0) {
+          await new Promise(r => setTimeout(r, 15000));
         }
 
-        const { jobId } = await response.json();
-        const data = await pollJob(jobId, '/scrape-chapter', (current, total) => {
-          setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: current, imageTotal: total });
-        });
+        let retries = 0;
+        const maxRetries = 3;
+        let data = null;
 
-        if (!data.images || data.images.length === 0) {
+        while (retries < maxRetries) {
+          const response = await fetch(`${API_BASE}/scrape-chapter`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chapterUrl: chapter.url }),
+          });
+
+          if (response.status === 429) {
+            // Rate limited - wait 30s and retry
+            console.warn(`Rate limited on chapter ${chapter.title}, waiting 30s...`);
+            await new Promise(r => setTimeout(r, 30000));
+            retries++;
+            continue;
+          }
+
+          if (!response.ok) {
+            console.warn(`Skipping chapter ${chapter.title} - request failed (HTTP ${response.status})`);
+            break;
+          }
+
+          const { jobId } = await response.json();
+          const result = await pollJob(jobId, '/scrape-chapter', (current, total) => {
+            setFullDownloadProgress({ chapterIndex: i, totalChapters: chapters.length, imageCurrent: current, imageTotal: total });
+          });
+
+          data = result;
+          break;
+        }
+
+        if (!data || !data.images || data.images.length === 0) {
           console.warn(`Skipping chapter ${chapter.title} - no images`);
           continue;
         }
