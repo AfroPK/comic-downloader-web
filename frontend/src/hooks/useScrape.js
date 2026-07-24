@@ -212,7 +212,7 @@ function useScrape() {
         }
       }
 
-      const content = await zip.generateAsync({ type: 'blob' });
+      const content = await zip.generateAsync({ type: 'blob', streamFiles: true });
       const fileName = `${sanitizeFileName(comicTitle)}.cbz`;
       saveAs(content, fileName);
 

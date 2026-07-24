@@ -138,7 +138,13 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
-  res.json(job);
+  // If job is done or error, return it and immediately delete to free memory
+  const response = { ...job };
+  if (job.status === 'done' || job.status === 'error') {
+    jobs.delete(req.params.jobId);
+    console.log(`[server] Deleted job ${req.params.jobId} after fetch, freed ${job.result?.images?.length || 0} images`);
+  }
+  res.json(response);
 });
 
 // Full comic download - server-side with disk storage
