@@ -10,6 +10,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: TARGET_SITES
+        value: https://batcave.biz,https://xoxocomic.com
       - key: PUPPETEER_CACHE_DIR
         value: /opt/render/project/go/src/github.com/AfroPK/comic-downloader-web/backend/node_modules/.cache/puppeteer
     healthCheck:

@@ -26,7 +26,9 @@ app.get('/api/health', (req, res) => {
 
 // Determine which scraper to use based on URL
 function getScraper(url) {
-  if (url.includes('xoxocomic.com')) {
+  // Handle both absolute and relative URLs
+  const urlStr = String(url || '');
+  if (urlStr.includes('xoxocomic.com')) {
     return { scrapeComic: scrapeComicXoxo, scrapeChapter: scrapeChapterXoxo };
   }
   return { scrapeComic: scrapeComicGeneric, scrapeChapter: scrapeChapterGeneric };
@@ -41,7 +43,11 @@ app.post('/api/scrape', async (req, res) => {
   }
 
   if (!isAllowedUrl(url)) {
-    return res.status(400).json({ error: 'Please provide a valid comic URL' });
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
+    return res.status(400).json({
+      error: `URL not allowed. Allowed sites: ${allowedList}. Received: ${url}`,
+    });
   }
 
   // Rate limiting
@@ -94,7 +100,11 @@ app.post('/api/scrape-chapter', async (req, res) => {
   }
 
   if (!isAllowedUrl(chapterUrl)) {
-    return res.status(400).json({ error: 'Please provide a valid chapter URL' });
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
+    return res.status(400).json({
+      error: `URL not allowed. Allowed sites: ${allowedList}. Received: ${chapterUrl}`,
+    });
   }
 
   const jobId = Date.now().toString();
