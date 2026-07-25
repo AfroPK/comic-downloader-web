@@ -109,6 +109,27 @@ The frontend will proxy API requests to `http://localhost:3000`.
 
 ## Deployment
 
+### Home Server (Recommended)
+
+Run on your own hardware with Docker. A laptop or old PC with 4GB+ RAM is plenty.
+
+```bash
+# On your Ubuntu server:
+git clone https://github.com/AfroPK/comic-downloader-web.git
+cd comic-downloader-web
+chmod +x setup-homeserver.sh
+./setup-homeserver.sh
+```
+
+This installs Docker, builds the backend image, and starts:
+- **Backend:** `http://your-server-ip:3000`
+- **Portainer UI:** `http://your-server-ip:9000` (manage containers)
+
+Update your frontend `.env.production`:
+```env
+VITE_API_BASE_URL=http://your-server-ip:3000/api
+```
+
 ### Backend (Render)
 
 1. Connect your GitHub repo to [Render](https://render.com)
