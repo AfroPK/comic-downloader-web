@@ -32,20 +32,24 @@ Paste a comic URL, get a structured CBZ file. The backend scrapes the chapter li
 
 ## Quick Start
 
-### 1. Clone and install dependencies (run once)
+### 1. Clone the repo
 
 ```bash
 git clone https://github.com/AfroPK/comic-downloader-web/
 cd comic-downloader-web
-
-# Install backend dependencies
-cd backend && npm install && cd ..
-
-# Install frontend dependencies
-cd frontend && npm install && cd ..
 ```
 
-### 2. Configure allowed sites
+### 2. Install dependencies (run once)
+
+**Windows:** Double-click `setup.bat`
+
+**Linux/Mac:**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### 3. Configure allowed sites
 
 Edit `backend/.env`:
 
@@ -58,7 +62,7 @@ Replace `https://example-comic-site.com` with the site you want to use. Multiple
 
 > **Note:** No sites are allowed by default. You must configure `TARGET_SITES` before scraping.
 
-### 3. Run the app
+### 4. Run the app
 
 **Windows:** Double-click `run.bat`
 
@@ -68,9 +72,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-> **Note:** `run.bat` and `run.sh` **do not install dependencies** — you must run `npm install` first (step 1 above).
-
-### 4. Use the app
+### 5. Use the app
 
 Open `http://localhost:5173` in your browser, paste a comic URL, and download.
 
