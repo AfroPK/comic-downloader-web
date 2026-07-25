@@ -16,7 +16,7 @@ services:
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     volumes:
       - /tmp/comic-downloads:/tmp/comic-downloads
-    mem_limit: 10g
+    mem_limit: 4g
     cpus: '2'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:10000/api/health"]
