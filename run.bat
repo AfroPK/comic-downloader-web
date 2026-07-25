@@ -10,13 +10,15 @@ echo Press Ctrl+C to stop
 echo.
 
 :: Start backend in background
-start "Comic Downloader - Backend" /K "cd /d D:\\AIWorkspace\\comic-downloader-web\\backend && npm start"
+cd /d "%~dp0backend"
+start "Comic Downloader - Backend" cmd /k "npm start"
 
 :: Wait a moment for backend to start
 timeout /t 3 /nobreak >nul
 
 :: Start frontend
-start "Comic Downloader - Frontend" /K "cd /d D:\\AIWorkspace\\comic-downloader-web\\frontend && npm run dev"
+cd /d "%~dp0frontend"
+start "Comic Downloader - Frontend" cmd /k "npm run dev"
 
 echo.
 echo Both servers started! Open http://localhost:5173
