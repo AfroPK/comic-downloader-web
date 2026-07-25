@@ -55,7 +55,7 @@ Edit `backend/.env`:
 
 ```env
 PORT=3000
-TARGET_SITES=https://batcave.biz,https://example-comic-site.com
+TARGET_SITES=https://example-comic-site1.com,https://example-comic-site2.com
 ```
 
 Replace with your site(s). Multiple sites are comma-separated — no spaces needed.
