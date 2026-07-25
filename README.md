@@ -32,7 +32,7 @@ Paste a comic URL, get a structured CBZ file. The backend scrapes the chapter li
 
 ## Quick Start
 
-### First Time Setup (run once)
+### 1. Clone and install dependencies (run once)
 
 ```bash
 git clone https://github.com/AfroPK/comic-downloader-web/
@@ -45,30 +45,9 @@ cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 ```
 
-### Run the app
+### 2. Configure allowed sites
 
-**Windows:** Double-click `run.bat`
-
-**Linux/Mac:**
-```bash
-chmod +x run.sh
-./run.sh
-```
-
-Then open `http://localhost:5173` in your browser.
-
-> **Note:** `run.bat` and `run.sh` **do not install dependencies** — you must run `npm install` first (see First Time Setup above).
-
-### Configure allowed sites
-
-Copy the example environment file and edit it:
-
-```bash
-cd backend
-cp .env .env.local
-```
-
-Edit `.env.local`:
+Edit `backend/.env`:
 
 ```env
 PORT=3000
@@ -79,32 +58,21 @@ Replace `https://example-comic-site.com` with the site you want to use. Multiple
 
 > **Note:** No sites are allowed by default. You must configure `TARGET_SITES` before scraping.
 
-### 3. Start the backend
+### 3. Run the app
 
+**Windows:** Double-click `run.bat`
+
+**Linux/Mac:**
 ```bash
-cd backend
-npm start
+chmod +x run.sh
+./run.sh
 ```
 
-The backend will run on `http://localhost:3000`.
+> **Note:** `run.bat` and `run.sh` **do not install dependencies** — you must run `npm install` first (step 1 above).
 
-### 4. Start the frontend
+### 4. Use the app
 
-In a new terminal:
-
-```bash
-cd frontend
-npm run dev
-```
-
-The frontend will run on `http://localhost:5173`.
-
-### 5. Use the app
-
-1. Open `http://localhost:5173` in your browser.
-2. Paste a comic URL from a configured site.
-3. Wait for chapters to load.
-4. Download individual chapters or the full comic.
+Open `http://localhost:5173` in your browser, paste a comic URL, and download.
 
 ---
 
