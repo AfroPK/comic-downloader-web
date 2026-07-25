@@ -1,0 +1,7 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - heading "Comic Downloader" [level=1] [ref=e6]
+    - generic [ref=e7]:
+      - textbox [ref=e9]
+      - button "Download" [disabled] [ref=e10]
+  - main [ref=e11]

@@ -35,7 +35,7 @@ Paste a comic URL, get a structured CBZ file. The backend scrapes the chapter li
 ### 1. Clone and install dependencies
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/AfroPK/comic-downloader-web/
 cd comic-downloader-web
 
 # Backend
