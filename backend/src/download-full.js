@@ -7,16 +7,7 @@ puppeteer.use(StealthPlugin);
 
 const TMP_DIR = process.env.TMPDIR || '/tmp';
 
-// User agents
-const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.2478.67',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-];
-
-function getRandomUserAgent() {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
-}
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
 function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
@@ -65,11 +56,6 @@ async function createBrowser() {
     '--start-maximized',
   ];
 
-  const proxyHost = process.env.PROXY_HOST;
-  if (proxyHost) {
-    args.push(`--proxy-server=${proxyHost}`);
-  }
-
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
@@ -77,29 +63,17 @@ async function createBrowser() {
     args: args,
     ignoreDefaultArgs: ['--enable-automation'],
   });
-
   return browser;
 }
 
 async function setupPage(browser, referer) {
   const page = await browser.newPage();
-
-  const proxyUsername = process.env.PROXY_USERNAME;
-  const proxyPassword = process.env.PROXY_PASSWORD;
-  const proxyHost = process.env.PROXY_HOST;
-  if (proxyHost && proxyUsername && proxyPassword) {
-    await page.authenticate({ username: proxyUsername, password: proxyPassword });
-  }
-
-  const width = 1920 + Math.floor(Math.random() * 100);
-  const height = 1080 + Math.floor(Math.random() * 100);
-  await page.setViewport({ width, height });
-
-  await page.setUserAgent(getRandomUserAgent());
+  await page.setViewport({ width: 1920, height: 1080 });
+  await page.setUserAgent(USER_AGENT);
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Referer': referer || 'https://xoxocomic.com/',
+    'Referer': referer || 'https://example-comic-site.com/',
     'sec-ch-ua': '"Google Chrome";v="125", "Chromium";v="125"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
@@ -116,7 +90,6 @@ async function setupPage(browser, referer) {
       req.continue();
     }
   });
-
   return page;
 }
 
@@ -125,20 +98,16 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
   if (isXoxo) {
     const allPagesUrl = chapterUrl.endsWith('/all') ? chapterUrl : `${chapterUrl}/all`;
     await page.goto(allPagesUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000 + Math.random() * 2000);
-
+    await page.waitForTimeout(3000);
     const images = await page.evaluate(() => {
       const imgs = document.querySelectorAll('img[data-original]');
       return Array.from(imgs).map(img => img.dataset.original).filter(src => src && src.length > 0);
     });
-
     return images;
   } else {
-    // Generic/batcave scraper approach
     await page.goto(chapterUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     await page.waitForTimeout(2000);
 
-    // Try to get window.__DATA__
     let chapterData = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       await page.waitForTimeout(1000);
@@ -147,11 +116,9 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
         break;
       }
     }
-
     if (!chapterData || !Array.isArray(chapterData.images)) {
       throw new Error('No images found for this chapter');
     }
-
     return chapterData.images;
   }
 }
@@ -160,7 +127,6 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
 async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader, onProgress) {
   ensureDir(outputDir);
   const downloaded = [];
-
   for (let i = 0; i < imageUrls.length; i++) {
     const imgUrl = imageUrls[i];
     try {
@@ -169,8 +135,8 @@ async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader,
         headers: {
           'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
           'Referer': referer,
-          'Cookie': cookieHeader || '',
-          'User-Agent': getRandomUserAgent(),
+          'Cookie': cookieHeader,
+          'User-Agent': USER_AGENT,
         },
       });
 
@@ -185,8 +151,7 @@ async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader,
         continue;
       }
 
-      const ct = (response.headers.get('content-type') || 'image/jpeg').split(';')[0];
-      const ext = ct.split('/')[1] || 'jpg';
+      const ext = (response.headers.get('content-type') || 'image/jpeg').split(';')[0].split('/')[1] || 'jpg';
       const fileName = `page_${String(i + 1).padStart(3, '0')}.${ext}`;
       const filePath = path.join(outputDir, fileName);
       fs.writeFileSync(filePath, buffer);
@@ -197,7 +162,6 @@ async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader,
       console.error(`[download-full] Error fetching image ${i + 1}:`, err.message);
     }
   }
-
   return downloaded;
 }
 
@@ -227,13 +191,10 @@ async function createMasterZipFromDisk(cbzPaths, outputPath) {
 // Main download function
 async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
   const { comicTitle, chapters } = comicInfo;
-
   if (!chapters || chapters.length === 0) {
     throw new Error('No chapters provided');
   }
-
   console.log(`[download-full] Comic: ${comicTitle}, ${chapters.length} chapters`);
-
   const isXoxo = comicUrl.includes('xoxocomic.com');
   const baseUrl = isXoxo ? 'https://xoxocomic.com' : (() => {
     try { return new URL(comicUrl).origin; } catch { return ''; }
@@ -241,13 +202,10 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
 
   let browser = null;
   let page = null;
-
   try {
-    // Open one browser for all chapter URL extraction
     browser = await createBrowser();
     page = await setupPage(browser, `${baseUrl}/`);
 
-    // Step 2: Download each chapter
     onProgress('downloading-chapters', 0, chapters.length);
     const cbzPaths = [];
     const cookies = await page.cookies();
@@ -257,16 +215,13 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
       const chapter = chapters[i];
       onProgress('downloading-chapters', i + 1, chapters.length, chapter.title);
 
-      // Extract image URLs using the existing page
       const imageUrls = await extractChapterImageUrls(page, chapter.url, isXoxo);
       if (!imageUrls || imageUrls.length === 0) {
         console.warn(`[download-full] No images for chapter ${chapter.title}`);
         continue;
       }
-
       console.log(`[download-full] Chapter ${i + 1}: ${imageUrls.length} images`);
 
-      // Download images to disk
       const chapterDir = path.join(jobDir, `chapter_${i}`);
       const downloaded = await downloadImagesToDisk(
         imageUrls,
@@ -275,22 +230,18 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
         cookieHeader,
         (current, total) => onProgress('downloading-images', current, total, chapter.title)
       );
-
       if (downloaded.length === 0) {
         console.warn(`[download-full] No images downloaded for chapter ${chapter.title}`);
         continue;
       }
 
-      // Create CBZ
       const cbzName = `${sanitizeFileName(chapter.title || `Chapter${i + 1}`)}.cbz`;
       const cbzPath = path.join(jobDir, cbzName);
       await createCbzFromDisk(downloaded, cbzPath);
       cbzPaths.push({ name: cbzName, path: cbzPath });
 
-      // Cleanup downloaded images (keep CBZ)
       cleanupDir(chapterDir);
 
-      // Small delay between chapters
       if (i < chapters.length - 1) {
         await new Promise(r => setTimeout(r, 2000));
       }
@@ -300,13 +251,11 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
       throw new Error('No chapters could be downloaded');
     }
 
-    // Step 3: Bundle into master ZIP
     onProgress('bundling', 0, 0);
     const masterName = `${sanitizeFileName(comicTitle)}Full.zip`;
     const masterPath = path.join(jobDir, masterName);
     await createMasterZipFromDisk(cbzPaths, masterPath);
 
-    // Cleanup CBZs (keep only master)
     for (const { path: cbzPath } of cbzPaths) {
       try { fs.unlinkSync(cbzPath); } catch (e) {}
     }

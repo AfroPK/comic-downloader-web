@@ -1,9 +1,11 @@
 // Central site configuration
-// Supports multiple sites via comma-separated list in TARGET_SITES
-// Example: TARGET_SITES=https://site1.com,https://site2.com,https://site3.com
+// For local use, set TARGET_SITES in a .env file or environment:
+//   TARGET_SITES=https://example-comic-site.com
+// Multiple sites can be comma-separated.
+// By default no sites are allowed until configured by the user.
 
 function getAllowedSites() {
-  const sitesEnv = process.env.TARGET_SITES || process.env.TARGET_SITE || '';
+  const sitesEnv = process.env.TARGET_SITES || '';
   if (!sitesEnv) return [];
 
   return sitesEnv
@@ -15,19 +17,28 @@ function getAllowedSites() {
 function getSiteForUrl(url) {
   if (typeof url !== 'string') return undefined;
   const sites = getAllowedSites();
-  return sites.find(site => url.includes(new URL(site).hostname));
+  return sites.find(site => {
+    try {
+      return url.includes(new URL(site).hostname);
+    } catch {
+      return false;
+    }
+  });
 }
 
 function isAllowedUrl(url) {
   if (typeof url !== 'string') return false;
-  return getAllowedSites().some(site => url.includes(new URL(site).hostname));
+  return getAllowedSites().some(site => {
+    try {
+      return url.includes(new URL(site).hostname);
+    } catch {
+      return false;
+    }
+  });
 }
-
-const TARGET_SITE = process.env.TARGET_SITE || '';
 
 module.exports = {
   getAllowedSites,
   getSiteForUrl,
   isAllowedUrl,
-  TARGET_SITE,
 };

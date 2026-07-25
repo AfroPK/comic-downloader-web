@@ -42,12 +42,6 @@ async function scrapeChapter(chapterUrl, onProgress) {
     '--disable-blink-features=AutomationControlled',
   ];
 
-  const proxyHost = process.env.PROXY_HOST;
-  if (proxyHost) {
-    args.push(`--proxy-server=${proxyHost}`);
-    console.log(`[scrape-chapter] Using proxy: ${proxyHost}`);
-  }
-
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
@@ -57,13 +51,6 @@ async function scrapeChapter(chapterUrl, onProgress) {
   });
 
   const page = await browser.newPage();
-
-  const proxyUsername = process.env.PROXY_USERNAME;
-  const proxyPassword = process.env.PROXY_PASSWORD;
-  if (proxyHost && proxyUsername && proxyPassword) {
-    await page.authenticate({ username: proxyUsername, password: proxyPassword });
-    console.log('[scrape-chapter] Proxy authentication configured');
-  }
 
   await page.setViewport({ width: 1920, height: 1080 });
   await page.setUserAgent(

@@ -63,7 +63,6 @@ async function scrapeComic(url) {
   const baseUrl = getBaseUrl(url);
   console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
   console.log('[scrape] Base URL:', baseUrl);
-  console.log('[scrape] PROXY_HOST env:', process.env.PROXY_HOST || 'not set');
 
   const args = [
     '--no-sandbox',
@@ -74,12 +73,6 @@ async function scrapeComic(url) {
     '--disable-blink-features=AutomationControlled',
   ];
 
-  const proxyHost = process.env.PROXY_HOST;
-  if (proxyHost) {
-    args.push(`--proxy-server=${proxyHost}`);
-    console.log(`[scrape] Using proxy: ${proxyHost}`);
-  }
-
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
@@ -89,13 +82,6 @@ async function scrapeComic(url) {
   });
 
   const page = await browser.newPage();
-
-  const proxyUsername = process.env.PROXY_USERNAME;
-  const proxyPassword = process.env.PROXY_PASSWORD;
-  if (proxyHost && proxyUsername && proxyPassword) {
-    await page.authenticate({ username: proxyUsername, password: proxyPassword });
-    console.log('[scrape] Proxy authentication configured');
-  }
 
   await page.setViewport({ width: 1920, height: 1080 });
   await page.setUserAgent(

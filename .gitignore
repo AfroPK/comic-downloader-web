@@ -6,10 +6,11 @@ frontend/node_modules/
 frontend/dist/
 backend/dist/
 
-# Environment variables
-.env
+# Local environment files (keep .env as a template)
 .env.local
 .env.*.local
+backend/.env.local
+frontend/.env.local
 
 # Logs
 npm-debug.log*

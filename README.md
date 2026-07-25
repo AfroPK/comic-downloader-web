@@ -1,18 +1,6 @@
 # Comic Downloader
 
-> A web app for downloading comics as CBZ archives. Built with React + Node.js + Puppeteer.
-
-[![Deploy](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)](https://render.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
-[![Node.js](https://img.shields.io/badge/Node.js-18-339933?logo=node.js)](https://nodejs.org)
-
----
-
-## Screenshots
-
-| Home | Scraping | Results |
-|------|----------|---------|
-| ![Home](screenshots/homepage.png) | ![Scraping](screenshots/scraping.png) | ![Results](screenshots/results.png) |
+> A local-only web app for downloading comics as CBZ archives. Built with React + Node.js + Puppeteer.
 
 ---
 
@@ -20,158 +8,81 @@
 
 Paste a comic URL, get a structured CBZ file. The backend scrapes the chapter list, downloads each page as an image, and bundles everything into a single archive organized by chapter.
 
-**Supported formats:**
-
-- **CBZ** (ZIP with `.cbz` extension) — one archive per chapter, or a master archive with all chapters
-- Images organized in folders by chapter name
+**This project is designed to run locally on your machine.**
 
 ---
 
-## Tech Stack
+## Requirements
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + Vite |
-| Backend | Node.js + Express |
-| Scraping | Puppeteer (headless Chrome) |
-| Archive | JSZip |
-| Hosting | Render (backend) + GitHub Pages / Vercel (frontend) |
+- [Node.js](https://nodejs.org/) 18+
+- npm
+- A Chromium/Chrome browser (Puppeteer will try to find one automatically)
 
 ---
 
-## Architecture
+## Quick Start
 
-```
-┌─────────────┐      REST API       ┌─────────────────┐
-│   React     │ ◄─────────────────► │   Node/Express  │
-│  (Vite)     │   /api/scrape       │   Puppeteer     │
-│             │   /api/scrape-chapter│   JSZip         │
-└─────────────┘                     └─────────────────┘
-                                           │
-                                           ▼
-                                    ┌─────────────┐
-                                    │  Headless   │
-                                    │   Chrome    │
-                                    └─────────────┘
-```
-
----
-
-## Local Development
-
-### Prerequisites
-
-- Node.js 18+
-- Chrome/Chromium (for Puppeteer)
-
-### 1. Clone & Install
+### 1. Clone and install dependencies
 
 ```bash
-git clone https://github.com/AfroPK/comic-downloader-web.git
+git clone <your-repo-url>
 cd comic-downloader-web
 
-# Install backend
-cd backend && npm install
+# Backend
+cd backend
+npm install
 
-# Install frontend
-cd ../frontend && npm install
+# Frontend
+cd ../frontend
+npm install
 ```
 
-### 2. Environment Variables
+### 2. Configure allowed sites
 
-Create `backend/.env`:
-
-```env
-# Required: which sites are allowed
-TARGET_SITES=https://example-site.com
-
-# Optional: proxy for scraping
-PROXY_HOST=your-proxy-host:port
-PROXY_USERNAME=your-username
-PROXY_PASSWORD=your-password
-```
-
-### 3. Run
+Copy the example environment file and edit it:
 
 ```bash
-# Terminal 1: Backend
+cd backend
+cp .env .env.local
+```
+
+Edit `.env.local`:
+
+```env
+PORT=3000
+TARGET_SITES=https://example-comic-site.com
+```
+
+Replace `https://example-comic-site.com` with the site you want to use. Multiple sites can be comma-separated.
+
+> **Note:** No sites are allowed by default. You must configure `TARGET_SITES` before scraping.
+
+### 3. Start the backend
+
+```bash
 cd backend
 npm start
+```
 
-# Terminal 2: Frontend
+The backend will run on `http://localhost:3000`.
+
+### 4. Start the frontend
+
+In a new terminal:
+
+```bash
 cd frontend
 npm run dev
 ```
 
-The frontend will proxy API requests to `http://localhost:3000`.
+The frontend will run on `http://localhost:5173`.
 
----
+### 5. Use the app
 
-## Deployment
-
-### Home Server (Recommended)
-
-Run on your own hardware with Docker. A laptop or old PC with 4GB+ RAM is plenty.
-
-```bash
-# On your Ubuntu server:
-git clone https://github.com/AfroPK/comic-downloader-web.git
-cd comic-downloader-web
-chmod +x setup-homeserver.sh
-./setup-homeserver.sh
-```
-
-This installs Docker, builds the backend image, and starts:
-- **Backend:** `http://your-server-ip:3000`
-- **Portainer UI:** `http://your-server-ip:9000` (manage containers)
-
-Update your frontend `.env.production`:
-```env
-VITE_API_BASE_URL=http://your-server-ip:3000/api
-```
-
-### Backend (Render)
-
-1. Connect your GitHub repo to [Render](https://render.com)
-2. Create a Web Service with:
-   - **Root Directory:** `backend`
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Environment Variables:**
-     - `TARGET_SITES` — comma-separated list of allowed sites
-     - `NODE_ENV=production`
-
-A `render.yaml` is included for blueprint deployment.
-
-### Frontend (GitHub Pages / Vercel)
-
-**GitHub Pages:**
-
-```bash
-cd frontend
-npm run build
-# Deploy the `dist/` folder to GitHub Pages
-```
-
-Update `vite.config.js`:
-- For GitHub Pages: `base: '/comic-downloader-web/'`
-- For custom domain: `base: '/'`
-
-**Vercel:**
-
-Connect the repo and set the root directory to `frontend`.
-
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TARGET_SITES` | Yes | Comma-separated list of allowed comic sites |
-| `PROXY_HOST` | No | Proxy server for scraping |
-| `PROXY_USERNAME` | No | Proxy auth username |
-| `PROXY_PASSWORD` | No | Proxy auth password |
-| `PUPPETEER_EXECUTABLE_PATH` | No | Custom Chrome path |
+1. Open `http://localhost:5173` in your browser.
+2. Paste a comic URL from a configured site.
+3. Wait for chapters to load.
+4. Download individual chapters or the full comic.
 
 ---
 
@@ -181,38 +92,52 @@ Connect the repo and set the root directory to `frontend`.
 comic-downloader-web/
 ├── backend/
 │   ├── src/
-│   │   ├── server.js              # Express API
-│   │   ├── scrape.js              # Generic comic scraper
-│   │   ├── scrape-chapter.js      # Generic chapter scraper
-│   │   ├── download-full.js         # Full comic download (single browser, disk-based)
+│   │   ├── server.js          # Express API
+│   │   ├── scrape.js          # Generic comic scraper
+│   │   ├── scrape-chapter.js  # Generic chapter scraper
+│   │   ├── download-full.js   # Full comic downloader
 │   │   ├── scrapers/
-│   │   │   └── xoxocomic.js       # Site-specific scraper
-│   │   └── config.js              # Site allowlist
-│   └── package.json
+│   │   │   └── xoxocomic.js   # xoxocomic-specific scraper
+│   │   └── config.js          # Allowed site configuration
+│   └── .env                   # Local env template
 ├── frontend/
-│   ├── src/
-│   │   ├── App.jsx
-│   │   ├── hooks/
-│   │   │   └── useScrape.js       # Scraping state management
-│   │   └── components/
-│   │       ├── ComicForm.jsx      # URL input
-│   │       ├── ChapterList.jsx    # Chapter grid
-│   │       └── FullDownloadSection.jsx
-│   └── package.json
-└── render.yaml                    # Render blueprint
+│   └── src/
+│       ├── App.jsx
+│       └── hooks/useScrape.js
+└── screenshots/
 ```
 
 ---
 
-## How Scraping Works
+## Custom Chromium Path
 
-1. **Comic page** — Puppeteer navigates to the URL, extracts the chapter list
-2. **Chapter pages** — For each chapter, Puppeteer loads the reader page and extracts image URLs
-3. **Image download** — Images are fetched directly (not through browser) with proper cookies/referer
-4. **Archiving** — Images are written to disk as binary files, then bundled into CBZ/ZIP
-5. **Cleanup** — Temporary files are deleted after the archive is created
+If Puppeteer cannot find your browser, set the path manually:
 
-The full-download endpoint uses a single browser instance across all chapters to minimize memory usage.
+```env
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+```
+
+On Windows, use a path like:
+
+```env
+PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+```
+
+---
+
+## Troubleshooting
+
+- **"URL not allowed"** — Add the site's origin to `TARGET_SITES` in `backend/.env.local`.
+- **Puppeteer cannot launch** — Make sure Chrome/Chromium is installed, or set `PUPPETEER_EXECUTABLE_PATH`.
+- **Frontend cannot reach backend** — Make sure the backend is running and `VITE_API_BASE_URL` points to the correct address.
+
+---
+
+## Security & Privacy
+
+- This tool runs entirely on your local machine.
+- No credentials, proxies, or deployment configuration are included.
+- Only URLs matching `TARGET_SITES` are allowed.
 
 ---
 
@@ -220,8 +145,7 @@ The full-download endpoint uses a single browser instance across all chapters to
 
 **This tool is for personal use and educational purposes only.**
 
-- **Not affiliated with** any comic hosting site.
-- **Not affiliated with** Batcave, XoxoComic, or any other third-party platform.
+- Not affiliated with any comic hosting site.
 - Respect the terms of service of any site you use this with.
 - Only use this on sites you have permission to access.
 - The authors assume no liability for misuse.
@@ -231,9 +155,3 @@ The full-download endpoint uses a single browser instance across all chapters to
 ## License
 
 MIT
-
----
-
-<p align="center">
-  Built with ⚡ by <a href="https://github.com/AfroPK">AfroPK</a>
-</p>

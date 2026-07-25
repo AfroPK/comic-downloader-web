@@ -1,10 +1,11 @@
 {
   "name": "comic-downloader-backend",
   "version": "1.0.0",
-  "description": "Comic scraping backend",
+  "description": "Comic scraping backend for local use",
   "main": "src/server.js",
   "scripts": {
-    "start": "node --max-old-space-size=4096 src/server.js"
+    "start": "node --max-old-space-size=4096 src/server.js",
+    "dev": "node --max-old-space-size=4096 src/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
