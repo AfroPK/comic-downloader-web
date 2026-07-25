@@ -55,10 +55,10 @@ Edit `backend/.env`:
 
 ```env
 PORT=3000
-TARGET_SITES=https://example-comic-site.com
+TARGET_SITES=https://batcave.biz,https://example-comic-site.com
 ```
 
-Replace `https://example-comic-site.com` with the site you want to use. Multiple sites can be comma-separated.
+Replace with your site(s). Multiple sites are comma-separated — no spaces needed.
 
 > **Note:** No sites are allowed by default. You must configure `TARGET_SITES` before scraping.
 
@@ -96,7 +96,10 @@ comic-downloader-web/
 │   └── src/
 │       ├── App.jsx
 │       └── hooks/useScrape.js
-└── run.bat                  # Quick start script
+├── run.bat                  # Quick start script (Windows)
+├── run.sh                   # Quick start script (Linux/Mac)
+├── setup.bat                # Install dependencies (Windows)
+└── setup.sh                 # Install dependencies (Linux/Mac)
 ```
 
 ---
