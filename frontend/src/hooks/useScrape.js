@@ -22,61 +22,55 @@ function sanitizeFileName(str) {
 async function createCbzBlob(images) {
   const zip = new JSZip();
   for (let i = 0; i < images.length; i++) {
-    const imgDataUrl = images[i];
-    const blob = dataUrlToBlob(imgDataUrl);
-    const ext = blob.type.split('/')[1] || 'jpg';
-    zip.file(`page_${String(i + 1).padStart(3, '0')}.${ext}`, blob);
+    const img = images[i];
+    const ext = img.mimeType === 'image/png' ? 'png' : 'jpg';
+    const filename = `${String(i + 1).padStart(3, '0')}.${ext}`;
+    const blob = dataUrlToBlob(img.dataUrl);
+    zip.file(filename, blob);
   }
   return zip.generateAsync({ type: 'blob' });
 }
 
-async function pollJob(jobId, endpoint, onProgress) {
+function waitForJob(jobId, onProgress, endpoint = 'scrape') {
   return new Promise((resolve, reject) => {
-    const check = async () => {
+    const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}${endpoint}/${jobId}`);
+        const res = await fetch(`${API_BASE}/${endpoint}/${jobId}`);
         const data = await res.json();
+        if (onProgress) onProgress(data);
         if (data.status === 'done') {
+          clearInterval(interval);
           resolve(data.result);
         } else if (data.status === 'error') {
+          clearInterval(interval);
           reject(new Error(data.error));
-        } else {
-          // Report progress while polling
-          if (onProgress && data.progress !== undefined && data.total > 0) {
-            onProgress(data.progress, data.total);
-          }
-          setTimeout(check, 2000);
         }
       } catch (err) {
+        clearInterval(interval);
         reject(err);
       }
-    };
-    check();
+    }, 500);
   });
 }
 
-function useScrape() {
+export function useScrape() {
   const [status, setStatus] = useState('idle');
   const [comicTitle, setComicTitle] = useState('');
-  const [chapters, setChapters] = useState([]);
   const [comicUrl, setComicUrl] = useState('');
+  const [chapters, setChapters] = useState([]);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [downloadingChapterIndex, setDownloadingChapterIndex] = useState(null);
-  const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
-  const [fullDownloadProgress, setFullDownloadProgress] = useState({ chapterIndex: 0, totalChapters: 0, imageCurrent: 0, imageTotal: 0 });
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [fullDownloadProgress, setFullDownloadProgress] = useState({ current: 0, total: 0 });
 
   const scrape = useCallback(async (url) => {
     setStatus('scraping');
     setError('');
-    setChapters([]);
     setComicTitle('');
     setComicUrl(url);
+    setChapters([]);
     setProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setProgress(prev => (prev >= 90 ? 90 : prev + Math.random() * 15));
-    }, 500);
 
     try {
       const response = await fetch(`${API_BASE}/scrape`, {
@@ -91,131 +85,118 @@ function useScrape() {
       }
 
       const { jobId } = await response.json();
-      const result = await pollJob(jobId, '/scrape');
+      const result = await waitForJob(jobId, (data) => {
+        if (data.progress !== undefined && data.total !== undefined) {
+          setProgress(data.total ? Math.round((data.progress / data.total) * 100) : 0);
+        }
+      }, 'scrape');
 
-      clearInterval(progressInterval);
-      setComicTitle(result.comicTitle);
-      setChapters(result.chapters);
-      setProgress(100);
-      setStatus('done');
+      setComicTitle(result.title || 'Untitled Comic');
+      setChapters(result.chapters || []);
+      setStatus('idle');
     } catch (err) {
-      clearInterval(progressInterval);
       setError(err.message);
       setStatus('error');
     }
   }, []);
 
-  const downloadChapter = useCallback(async (chapterUrl, chapterTitle, index) => {
+  const downloadChapter = useCallback(async (chapter, index) => {
     setStatus('downloading-chapter');
     setDownloadingChapterIndex(index);
-    setDownloadProgress({ current: 0, total: 0 });
+    setDownloadProgress(0);
     setError('');
 
     try {
       const response = await fetch(`${API_BASE}/scrape-chapter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapterUrl }),
+        body: JSON.stringify({ chapterUrl: chapter.url }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start chapter download');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to start chapter download');
       }
 
       const { jobId } = await response.json();
-      // Pass progress callback to pollJob
-      const result = await pollJob(jobId, '/scrape-chapter', (current, total) => {
-        setDownloadProgress({ current, total });
-      });
+      const result = await waitForJob(jobId, (data) => {
+        if (data.progress !== undefined && data.total !== undefined) {
+          setDownloadProgress(data.total ? Math.round((data.progress / data.total) * 100) : 0);
+        }
+      }, 'scrape-chapter');
 
       if (!result.images || result.images.length === 0) {
         throw new Error('No images received for this chapter');
       }
 
-      const content = await createCbzBlob(result.images);
-
-      // Build filename: Chapter title only, stripping all non-alphanumeric chars (keep #)
-      const fileName = `${sanitizeFileName(chapterTitle || `Chapter${index + 1}`)}.cbz`;
-      saveAs(content, fileName);
-
-      setStatus('done');
-      setDownloadingChapterIndex(null);
+      const cbzBlob = await createCbzBlob(result.images);
+      const safeTitle = sanitizeFileName(comicTitle || 'comic');
+      const safeChapter = sanitizeFileName(chapter.title || `chapter-${index + 1}`);
+      saveAs(cbzBlob, `${safeTitle}_${safeChapter}.cbz`);
+      setStatus('idle');
     } catch (err) {
       setError(`Download failed: ${err.message}`);
       setStatus('error');
+    } finally {
       setDownloadingChapterIndex(null);
     }
   }, [comicTitle]);
 
   const downloadFullComic = useCallback(async () => {
+    if (!comicUrl) {
+      setError('No comic URL available. Please scrape the comic first.');
+      return;
+    }
+
     setStatus('downloading-full');
+    setFullDownloadProgress({ current: 0, total: chapters.length });
     setError('');
-    setFullDownloadProgress({ chapterIndex: 0, totalChapters: chapters.length, imageCurrent: 0, imageTotal: 0 });
 
     try {
-      // Use the backend full-download endpoint (server-side, disk-based, low memory)
-      if (!comicUrl) {
-        throw new Error('No comic URL available. Please scrape the comic first.');
-      }
-
-      const startRes = await fetch(`${API_BASE}/download-full`, {
+      const response = await fetch(`${API_BASE}/download-full`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comicUrl }),
       });
 
-      if (!startRes.ok) {
-        const errData = await startRes.json().catch(() => ({}));
+      if (!response.ok) {
+        const errData = await response.json();
         throw new Error(errData.error || 'Failed to start full download');
       }
 
-      const { jobId } = await startRes.json();
+      const { jobId } = await response.json();
 
-      // Poll for status
-      let fileName = '';
-      while (true) {
-        await new Promise(r => setTimeout(r, 3000));
-        const statusRes = await fetch(`${API_BASE}/download-full/${jobId}`);
-        const data = await statusRes.json();
+      const result = await new Promise((resolve, reject) => {
+        const interval = setInterval(async () => {
+          try {
+            const res = await fetch(`${API_BASE}/download-full/${jobId}`);
+            const data = await res.json();
+            setFullDownloadProgress({ current: data.progress || 0, total: data.total || chapters.length });
 
-        if (data.status === 'error') {
-          throw new Error(data.error || 'Download failed');
-        }
+            if (data.status === 'done') {
+              clearInterval(interval);
+              resolve(data);
+            } else if (data.status === 'error') {
+              clearInterval(interval);
+              reject(new Error(data.error || 'Download failed'));
+            }
+          } catch (err) {
+            clearInterval(interval);
+            reject(err);
+          }
+        }, 1000);
+      });
 
-        if (data.status === 'done') {
-          fileName = data.fileName;
-          break;
-        }
-
-        // Update progress
-        if (data.totalChapters > 0) {
-          setFullDownloadProgress({
-            chapterIndex: (data.currentChapter || 0) - 1,
-            totalChapters: data.totalChapters,
-            imageCurrent: data.imageCurrent || 0,
-            imageTotal: data.imageTotal || 0,
-            chapterTitle: data.chapterTitle,
-          });
-        }
+      if (result.filePath) {
+        window.location.href = `${API_BASE}/download-full/${jobId}/file`;
       }
 
-      // Trigger file download
-      const downloadUrl = `${API_BASE}/download-file/${jobId}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setStatus('done');
-      setDownloadingChapterIndex(null);
+      setStatus('idle');
     } catch (err) {
-      setError(`Download failed: ${err.message}`);
+      setError(`Full download failed: ${err.message}`);
       setStatus('error');
-      setDownloadingChapterIndex(null);
     }
-  }, [chapters, comicUrl]);
+  }, [comicUrl, chapters.length]);
 
   return {
     status,
@@ -231,5 +212,3 @@ function useScrape() {
     downloadFullComic,
   };
 }
-
-export { useScrape };

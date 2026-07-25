@@ -1,6 +1,6 @@
 # Comic Downloader
 
-> A local-only web app for downloading comics as CBZ archives. Built with React + Node.js + Puppeteer.
+> A local-only web app for downloading comics as CBZ archives. Run it locally — no bundling needed.
 
 ---
 
@@ -16,7 +16,17 @@ Paste a comic URL, get a structured CBZ file. The backend scrapes the chapter li
 
 - [Node.js](https://nodejs.org/) 18+
 - npm
-- A Chromium/Chrome browser (Puppeteer will try to find one automatically)
+- **Google Chrome installed** (required for Puppeteer scraping)
+
+> **Important:** The app requires Google Chrome to be installed on your system.
+> The app will automatically detect Chrome at the standard Windows paths:
+> - `C:\Program Files\Google\Chrome\Application\chrome.exe`
+> - `C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`
+>
+> If Chrome is installed elsewhere, set the `PUPPETEER_EXECUTABLE_PATH` environment variable
+> in `backend/.env` to point to your Chrome executable.
+>
+> The app will NOT work without a Chrome/Chromium browser installed.
 
 ---
 
@@ -104,14 +114,14 @@ comic-downloader-web/
 │   └── src/
 │       ├── App.jsx
 │       └── hooks/useScrape.js
-└── screenshots/
+└── run.bat                  # Quick start script
 ```
 
 ---
 
 ## Custom Chromium Path
 
-If Puppeteer cannot find your browser, set the path manually:
+If Puppeteer cannot find your browser, set the path manually in `backend/.env`:
 
 ```env
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
@@ -123,12 +133,15 @@ On Windows, use a path like:
 PUPPETEER_EXECUTABLE_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
 ```
 
+Supported browsers: **Google Chrome**, **Microsoft Edge**, **Brave Browser**.
+
 ---
 
 ## Troubleshooting
 
 - **"URL not allowed"** — Add the site's origin to `TARGET_SITES` in `backend/.env.local`.
-- **Puppeteer cannot launch** — Make sure Chrome/Chromium is installed, or set `PUPPETEER_EXECUTABLE_PATH`.
+- **Download does nothing / scrape fails** — Make sure Google Chrome is installed. Puppeteer cannot launch without it.
+- **"Puppeteer cannot launch"** — Chrome may be installed in a non-standard location. Set `PUPPETEER_EXECUTABLE_PATH` in `backend/.env`.
 - **Frontend cannot reach backend** — Make sure the backend is running and `VITE_API_BASE_URL` points to the correct address.
 
 ---

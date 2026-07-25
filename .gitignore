@@ -5,6 +5,8 @@ frontend/node_modules/
 # Build output
 frontend/dist/
 backend/dist/
+dist/
+electron/dist/
 
 # Local environment files (keep .env as a template)
 .env.local

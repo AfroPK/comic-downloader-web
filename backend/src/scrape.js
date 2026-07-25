@@ -18,8 +18,22 @@ function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
-  const systemPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
-  for (const p of systemPaths) {
+  // Windows Chrome paths
+  const winPaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Users\\' + (process.env.USERNAME || '') + '\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+  for (const p of winPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  // Linux paths
+  const linuxPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+  for (const p of linuxPaths) {
     if (fs.existsSync(p)) return p;
   }
   return undefined;
@@ -35,22 +49,35 @@ function extractComicId(url) {
 
 async function extractTitle(page) {
   return page.evaluate(() => {
+    // Try common title selectors
     const selectors = [
       'h1[class*="title"]',
+      'h1[class*="Title"]',
       '[class*="page__title"]',
       '[class*="post-title"]',
       '[class*="comic-title"]',
+      '[class*="ComicTitle"]',
+      '[class*="comic-title"]',
       'h1',
       'title',
+      'meta[property="og:title"]',
+      'meta[name="og:title"]',
     ];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
-      const txt = el && el.textContent ? el.textContent.trim() : '';
+      if (!el) continue;
+      let txt = '';
+      if (el.getAttribute) {
+        txt = el.getAttribute('content') || el.getAttribute('value') || el.textContent || '';
+      } else {
+        txt = el.textContent || '';
+      }
+      txt = (txt || '').trim();
       if (txt && txt.length > 3) {
         return txt.substring(0, 80);
       }
     }
-    return 'Unknown Comic';
+    return null;
   });
 }
 
@@ -73,12 +100,20 @@ async function scrapeComic(url) {
     '--disable-blink-features=AutomationControlled',
   ];
 
+  if (!executablePath) {
+    console.log('[scrape] No Chrome/Chromium found, using bundled Chromium');
+  } else {
+    console.log('[scrape] Using Chrome at:', executablePath);
+  }
+
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
     cacheDir: cacheDir,
     args: args,
     ignoreDefaultArgs: ['--enable-automation'],
+    timeout: 30000,
+    slowMo: 0,
   });
 
   const page = await browser.newPage();
@@ -114,11 +149,22 @@ async function scrapeComic(url) {
   const detailUrl = page.url();
   console.log('[scrape] Detail page URL:', detailUrl);
 
-  let comicTitle = 'Unknown Comic';
+  let comicTitle = null;
   try {
     comicTitle = await extractTitle(page);
     console.log('[scrape] Page title:', comicTitle);
   } catch (e) {}
+
+  // Fallback: extract from URL slug
+  if (!comicTitle) {
+    const slugMatch = url.match(/\/\d+-(.+?)\.html?/i);
+    if (slugMatch) {
+      comicTitle = slugMatch[1].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    } else {
+      comicTitle = 'Unknown Comic';
+    }
+    console.log('[scrape] Fallback title from URL:', comicTitle);
+  }
 
   // Step 3: Try to find reader link, or construct it
   let readerUrl = `${baseUrl}/reader/${comicId}`;
@@ -155,11 +201,29 @@ async function scrapeComic(url) {
   const chapters = [];
   if (data.chapters && Array.isArray(data.chapters)) {
     for (const chapter of data.chapters) {
+      const chapterId = chapter.id || chapter.chapterId || chapter.slug || chapter.slugId;
+      if (!chapterId) {
+        console.log('[scrape] Skipping chapter without ID:', chapter);
+        continue;
+      }
       chapters.push({
-        title: chapter.title?.trim() || `Chapter ${chapter.id}`,
-        url: `${baseUrl}/reader/${comicId}/${chapter.id}`,
-        chapterId: chapter.id,
+        title: chapter.title?.trim() || `Chapter ${chapterId}`,
+        url: `${baseUrl}/reader/${comicId}/${chapterId}`,
+        chapterId: chapterId,
       });
+    }
+  }
+  // If no chapters found from __DATA__, try extracting from page links
+  if (chapters.length === 0) {
+    const pageChapters = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a[href*="/reader/"]'));
+      return links.map(a => ({
+        title: a.textContent?.trim() || '',
+        url: a.href,
+      }));
+    });
+    if (pageChapters.length > 0) {
+      return { comicTitle, chapters: pageChapters };
     }
   }
 

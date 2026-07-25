@@ -18,8 +18,20 @@ function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
-  const systemPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
-  for (const p of systemPaths) {
+  const winPaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Users\\' + (process.env.USERNAME || '') + '\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+  for (const p of winPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  const linuxPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+  for (const p of linuxPaths) {
     if (fs.existsSync(p)) return p;
   }
   return undefined;
@@ -42,12 +54,19 @@ async function scrapeChapter(chapterUrl, onProgress) {
     '--disable-blink-features=AutomationControlled',
   ];
 
+  if (!executablePath) {
+    console.log('[scrape-chapter] No Chrome/Chromium found, using bundled Chromium');
+  } else {
+    console.log('[scrape-chapter] Using Chrome at:', executablePath);
+  }
+
   const browser = await puppeteer.launch({
     headless: 'new',
     executablePath: executablePath,
     cacheDir: cacheDir,
     args: args,
     ignoreDefaultArgs: ['--enable-automation'],
+    timeout: 30000,
   });
 
   const page = await browser.newPage();
