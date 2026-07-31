@@ -1,9 +1,10 @@
 # TASKS.md — Active Work Items
 
-## Current Phase: Phase 3 (Scraper Engine Optimization)
-- [x] Create feature branch `feature/phase3-scraper-optimization`.
-- [x] Implement exponential backoff auto-retry for image asset fetching in `download-full.js` and `scrape-chapter.js`.
-- [x] Add explicit scraper timeout handlers and progress error reporting in `src/core/progress.js`.
-- [x] Run backend verification and frontend production build.
-- [ ] Push branch `feature/phase3-scraper-optimization` and open Pull Request #3 on GitHub.
-- [ ] Human merge gate review and merge into `main`.
+## Current Phase: Bug Fix — Download Full Comic File Generation & Fallback Extraction
+- [x] Create feature branch `feature/fix-download-full-zip-and-chapter-extraction`.
+- [x] Fix filename matching and CBZ path registration in `backend/src/download-full.js`.
+- [x] Replace mock zip string stubs with actual binary file reading (`fs.readFileSync`).
+- [x] Write master zip archive directly to disk (`fs.writeFileSync`).
+- [x] Add DOM fallback selector image extraction strategy in `extractChapterImageUrls`.
+- [x] Run backend verification tests.
+- [ ] Open Pull Request and merge into `main` after CI pass.

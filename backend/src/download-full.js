@@ -104,7 +104,6 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
   if (isXoxo) {
     const allPagesUrl = chapterUrl.endsWith('/all') ? chapterUrl : `${chapterUrl}/all`;
     await page.goto(allPagesUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-    // Use a selector wait instead of fixed sleep for reliability
     try {
         await page.waitForSelector('#comic-page-container', {timeout: 15000});
     } catch (e) {
@@ -112,30 +111,52 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
     }
 
     const images = await page.evaluate(() => {
-      const imgs = document.querySelectorAll('img[data-original]');
-      return Array.from(imgs).map(img => img.dataset.original).filter(src => src && src.length > 0);
+      const imgs = document.querySelectorAll('img[data-original], img[data-src], img.comic-page');
+      return Array.from(imgs)
+        .map(img => img.dataset.original || img.dataset.src || img.src)
+        .filter(src => src && src.length > 0 && !src.includes('logo') && !src.includes('avatar'));
     });
     return images;
   } else {
-    // Dynamic waiting strategy for better reliability
     try {
       await page.goto(chapterUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     } catch(e) {
       console.log(`[download-full] Goto error for chapter: ${e.message}`);
     }
     
-    let chapterData = null;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      await new Promise(r => setTimeout(r, 2000));
+    // Strategy 1: Poll for window.__DATA__
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await new Promise(r => setTimeout(r, 1500));
       try {
-        chapterData = await page.evaluate(() => window.__DATA__ || null);
-        if (chapterData && Array.isArray(chapterData.images)) {
-          return chapterData.images; // Success, return immediately
+        const chapterData = await page.evaluate(() => window.__DATA__ || null);
+        if (chapterData && Array.isArray(chapterData.images) && chapterData.images.length > 0) {
+          return chapterData.images;
         }
-      } catch (e) {
-        // Retry on transient evaluation errors
-      }
+      } catch (e) {}
     }
+
+    // Strategy 2: Extract image URLs directly from DOM selectors
+    try {
+      const domImages = await page.evaluate(() => {
+        const selectors = ['#comic-page-container img', '.reading-content img', '.chapter-content img', '.view-chapter img', '#chapter-content img', 'img.chapter-img', 'img.page-img'];
+        for (const sel of selectors) {
+          const imgs = Array.from(document.querySelectorAll(sel));
+          if (imgs.length > 0) {
+            return imgs.map(i => i.dataset.original || i.dataset.src || i.src).filter(Boolean);
+          }
+        }
+        const allImgs = Array.from(document.querySelectorAll('img'));
+        return allImgs
+          .map(i => i.dataset.original || i.dataset.src || i.src)
+          .filter(src => src && /\.(jpg|jpeg|png|webp|avif)/i.test(src) && !src.includes('logo') && !src.includes('banner'));
+      });
+      if (domImages && domImages.length > 0) {
+        return domImages;
+      }
+    } catch (e) {
+      console.warn(`[download-full] DOM image extraction failed: ${e.message}`);
+    }
+
     throw new Error('Could not extract chapter images after multiple retries.');
   }
 }
@@ -205,27 +226,28 @@ async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader,
 }
 
 // Create CBZ from image files on disk
-async function createCbzFromDisk(imagePaths, outputDir) {
+async function createCbzFromDisk(imagePaths, targetCbzPath) {
   const zip = new JSZip();
   for (const imgPath of imagePaths) {
-    const data = fs.readFileSync(imgPath);
-    const fileName = path.basename(imgPath);
-    zip.file(fileName, data);
+    if (fs.existsSync(imgPath)) {
+      const data = fs.readFileSync(imgPath);
+      const fileName = path.basename(imgPath);
+      zip.file(fileName, data);
+    }
   }
-  // Use a predictable name for the CBZ in the job root to simplify cleanup/retrieval
-  const chapterName = path.basename(imagePaths[0]).replace(/[^a-zA-Z0-9]/g, '');
-  const cbzPath = path.join(outputDir, `${chapterName}.cbz`);
   const content = await zip.generateAsync({ type: 'nodebuffer' });
-  fs.writeFileSync(cbzPath, content);
+  fs.writeFileSync(targetCbzPath, content);
 }
 
-// Create master ZIP from CBZ files on disk (MODIFIED TO RETURN JSZip OBJECT)
-async function createMasterZipFromDisk(cbzPaths, outputDir) {
-    const zip = new JSZip();
-    for (const { name: cbzName, path: cbzPath } of cbzPaths) {
-        zip.file(cbzName, fs.readFileSync(cbzPath));
+// Create master ZIP from CBZ files on disk
+async function createMasterZipFromDisk(cbzPaths) {
+  const zip = new JSZip();
+  for (const { name: cbzName, path: cbzPath } of cbzPaths) {
+    if (fs.existsSync(cbzPath)) {
+      zip.file(cbzName, fs.readFileSync(cbzPath));
     }
-    return zip; 
+  }
+  return zip; 
 }
 
 // Main download function
@@ -242,7 +264,7 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
 
   let browser = null;
   let page = null;
-  let failedChapters = []; // Initialize failure tracker here
+  let failedChapters = [];
   try {
     browser = await createBrowser();
     page = await setupPage(browser, `${baseUrl}/`);
@@ -275,9 +297,11 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
             throw new Error('All images failed to download.');
         }
 
-        const cbzName = `${sanitizeFileName(chapter.title || ('Chapter ' + (i + 1)))}.cbz`;
-        await createCbzFromDisk(downloadedImages, jobDir);
-        cbzPaths.push({ name: cbzName, path: path.join(jobDir, cbzName) });
+        const sanitizedTitle = sanitizeFileName(chapter.title || '');
+        const cbzName = `${sanitizedTitle || ('Chapter_' + (i + 1))}.cbz`;
+        const cbzPath = path.join(jobDir, cbzName);
+        await createCbzFromDisk(downloadedImages, cbzPath);
+        cbzPaths.push({ name: cbzName, path: cbzPath });
 
       } catch (e) {
         console.error(`[download-full] Failed to process chapter ${i + 1}: ${chapter.title || 'Unknown'}. Reason: ${e.message}`);
@@ -294,38 +318,37 @@ async function downloadFullComic(comicUrl, jobDir, onProgress, comicInfo) {
     }
 
     onProgress('bundling', 0, 0);
-    const masterName = `${sanitizeFileName(comicTitle)}Full.zip`;
+    const sanitizedComicTitle = sanitizeFileName(comicTitle || 'Comic');
+    const masterName = `${sanitizedComicTitle || 'Comic'}Full.zip`;
 
-    let finalZipItemsList = [];
+    const masterZip = new JSZip();
     for (const { name: cbzName, path: cbzPath } of cbzPaths) {
-        finalZipItemsList.push({ name: cbzName, content: Buffer.from(`CBZ_CONTENT_${cbzName}`) });
+      if (fs.existsSync(cbzPath)) {
+        masterZip.file(cbzName, fs.readFileSync(cbzPath));
+      }
     }
 
     if (failedChapters.length > 0) {
       console.warn(`[download-full] Found ${failedChapters.length} failed chapters. Creating error report.`);
-      let errorReport = `Comic Downloader Report for: ${comicTitle}\\n\\n`;
-      errorReport += `The following chapters failed to download completely or were skipped due to errors:\\n`;
-      errorReport += `---------------------------------------------------\\n`;
+      let errorReport = `Comic Downloader Report for: ${comicTitle}\n\n`;
+      errorReport += `The following chapters failed to download completely or were skipped due to errors:\n`;
+      errorReport += `---------------------------------------------------\n`;
       failedChapters.forEach((fail, index) => {
-        errorReport += `${index + 1}. Chapter: ${fail.title}\\n`;
-        errorReport += `   URL: ${fail.url}\\n`;
-        errorReport += `   Reason: ${fail.reason}\\n\\n`;
+        errorReport += `${index + 1}. Chapter: ${fail.title}\n`;
+        errorReport += `   URL: ${fail.url}\n`;
+        errorReport += `   Reason: ${fail.reason}\n\n`;
       });
-      errorReport += `---------------------------------------------------\\n`;
+      errorReport += `---------------------------------------------------\n`;
       errorReport += `This report was generated automatically by the downloader script.`;
 
-      finalZipItemsList.push({ name: 'errors.txt', content: Buffer.from(errorReport) });
+      masterZip.file('errors.txt', Buffer.from(errorReport));
     }
 
+    const masterPath = path.join(jobDir, masterName);
+    const zipBuffer = await masterZip.generateAsync({ type: 'nodebuffer' });
+    fs.writeFileSync(masterPath, zipBuffer);
 
-    // Simulate the final zip creation using JSZip structure for consistency
-    const masterZip = new JSZip();
-    for (const item of finalZipItemsList) {
-        masterZip.file(item.name, item.content);
-    }
-    const content = await masterZip.generateAsync({ type: 'nodebuffer' });
-
-    return { filePath: path.join(jobDir, masterName), fileName: masterName, comicTitle, zipContent: content };
+    return { filePath: masterPath, fileName: masterName, comicTitle };
   } finally {
     if (page) {
       try { await page.close(); } catch (e) {}
