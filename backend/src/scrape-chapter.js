@@ -136,18 +136,30 @@ async function scrapeChapter(chapterUrl, onProgress) {
   for (let i = 0; i < chapterData.images.length; i++) {
     const imgUrl = chapterData.images[i];
     try {
-      const response = await fetch(imgUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'Referer': chapterUrl,
-          'Cookie': cookieHeader,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        },
-      });
+      let response = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await fetch(imgUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Referer': chapterUrl,
+              'Cookie': cookieHeader,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            },
+          });
+          if (response.ok) break;
+        } catch (e) {
+          lastErr = e;
+        }
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        }
+      }
 
-      if (!response.ok) {
-        console.error(`[scrape-chapter] Failed to fetch image ${i + 1}: HTTP ${response.status}`);
+      if (!response || !response.ok) {
+        console.error(`[scrape-chapter] Failed to fetch image ${i + 1} after retries: ${lastErr ? lastErr.message : 'HTTP ' + (response ? response.status : 'unknown')}`);
         failedImages.push(imgUrl);
         continue;
       }
