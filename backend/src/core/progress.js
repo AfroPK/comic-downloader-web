@@ -77,8 +77,17 @@ function removeClient(res) {
     }
 }
 
+/**
+ * Broadcasts an error event to all connected SSE clients.
+ * @param {string} errMessage - The error description.
+ */
+function broadcastError(errMessage) {
+    broadcast({ type: 'error', message: errMessage, timestamp: new Date().toISOString() });
+}
+
 module.exports = {
     addClient,
     broadcast,
+    broadcastError,
     removeClient
 };

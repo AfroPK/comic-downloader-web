@@ -140,15 +140,36 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
   }
 }
 
-// Download images via plain HTTP and write to disk
+async function fetchWithRetry(url, options, maxRetries = 3, backoffMs = 1000) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+      if (response.status >= 500 || response.status === 429) {
+        console.warn(`[fetchWithRetry] Attempt ${attempt}/${maxRetries} failed with status ${response.status} for ${url}`);
+      } else {
+        return response;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(`[fetchWithRetry] Attempt ${attempt}/${maxRetries} failed with error: ${err.message}`);
+    }
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, backoffMs * Math.pow(2, attempt - 1)));
+    }
+  }
+  throw lastError || new Error(`Failed to fetch ${url} after ${maxRetries} attempts`);
+}
+
+// Download images via plain HTTP and write to disk with retry logic
 async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader, onProgress) {
   ensureDir(outputDir);
   const downloaded = [];
   for (let i = 0; i < imageUrls.length; i++) {
     const imgUrl = imageUrls[i];
     try {
-      // Use dynamic waits/retry logic for HTTP fetch if needed, but keeping simple for now per AGY suggestion focus.
-      const response = await fetch(imgUrl, {
+      const response = await fetchWithRetry(imgUrl, {
         method: 'GET',
         headers: {
           'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
@@ -156,7 +177,7 @@ async function downloadImagesToDisk(imageUrls, outputDir, referer, cookieHeader,
           'Cookie': cookieHeader,
           'User-Agent': USER_AGENT,
         },
-      });
+      }, 3, 1000);
 
       if (!response.ok) {
         console.error(`[download-full] Failed to fetch image ${i + 1}: HTTP ${response.status}`);
