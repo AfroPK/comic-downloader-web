@@ -49,7 +49,6 @@ async function scrapeChapter(chapterUrl, onProgress) {
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
-    '--single-process',
     '--no-zygote',
     '--disable-blink-features=AutomationControlled',
   ];
@@ -85,24 +84,24 @@ async function scrapeChapter(chapterUrl, onProgress) {
 
   // Visit homepage first to establish cookies
   try {
-    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000);
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
   } catch (e) {
-    console.log('[scrape-chapter] Homepage visit timed out, continuing');
+    console.log(`[scrape-chapter] Homepage visit error: ${e.message}`);
   }
 
   // Navigate to chapter
   try {
-    await page.goto(chapterUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(chapterUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   } catch (e) {
-    console.log('[scrape-chapter] Chapter page goto timed out, continuing anyway');
+    console.log(`[scrape-chapter] Chapter page goto error: ${e.message}`);
   }
-  await page.waitForTimeout(5000);
+  await new Promise(r => setTimeout(r, 5000));
 
   // Poll for window.__DATA__ to appear
   let chapterData = null;
   for (let attempt = 0; attempt < 10; attempt++) {
-    await page.waitForTimeout(2000);
+    await new Promise(r => setTimeout(r, 2000));
     chapterData = await page.evaluate(() => window.__DATA__ || null);
     if (chapterData && Array.isArray(chapterData.images)) {
       console.log(`[scrape-chapter] window.__DATA__ found after ${attempt + 1} attempts`);
@@ -110,7 +109,9 @@ async function scrapeChapter(chapterUrl, onProgress) {
     }
   }
 
-  console.log('[scrape-chapter] Current page URL:', page.url());
+  let currentPageUrl = chapterUrl;
+  try { currentPageUrl = page.url(); } catch(e) {}
+  console.log('[scrape-chapter] Current page URL:', currentPageUrl);
   console.log('[scrape-chapter] window.__DATA__:', chapterData ? 'found' : 'not found');
 
   if (!chapterData || !Array.isArray(chapterData.images)) {

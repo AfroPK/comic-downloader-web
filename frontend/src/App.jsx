@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import UrlInput from './components/UrlInput';
 import ProgressPanel from './components/ProgressPanel';
 import ChapterList from './components/ChapterList';
+import ProgressBar from './components/ProgressBar';
 import FullDownloadSection from './components/FullDownloadSection';
 import { useScrape } from './hooks/useScrape';
 
@@ -49,7 +50,18 @@ function App() {
       <main className="app-main">
         <div className="content-grid">
           {status === 'scraping' && (
-            <ProgressPanel progress={progress} />
+            <div className="info-card" style={{ padding: '1rem' }}>
+              <ProgressBar progress={progress} label="Scraping progress..." />
+            </div>
+          )}
+
+          {isDownloadingChapter && (
+            <div className="info-card" style={{ padding: '1rem', marginTop: '1rem' }}>
+              <ProgressBar 
+                progress={downloadProgress.total ? (downloadProgress.current / downloadProgress.total) * 100 : 0} 
+                label={`Downloading chapter... (${downloadProgress.current}/${downloadProgress.total} images)`} 
+              />
+            </div>
           )}
 
           {error && (

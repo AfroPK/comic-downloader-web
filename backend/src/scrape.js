@@ -18,22 +18,8 @@ function findExecutablePath() {
   if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
     return process.env.PUPPETEER_EXECUTABLE_PATH;
   }
-  // Windows Chrome paths
-  const winPaths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Users\\' + (process.env.USERNAME || '') + '\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  ];
-  for (const p of winPaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  // Linux paths
-  const linuxPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
-  for (const p of linuxPaths) {
+  const systemPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+  for (const p of systemPaths) {
     if (fs.existsSync(p)) return p;
   }
   return undefined;
@@ -49,35 +35,22 @@ function extractComicId(url) {
 
 async function extractTitle(page) {
   return page.evaluate(() => {
-    // Try common title selectors
     const selectors = [
       'h1[class*="title"]',
-      'h1[class*="Title"]',
       '[class*="page__title"]',
       '[class*="post-title"]',
       '[class*="comic-title"]',
-      '[class*="ComicTitle"]',
-      '[class*="comic-title"]',
       'h1',
       'title',
-      'meta[property="og:title"]',
-      'meta[name="og:title"]',
     ];
     for (const sel of selectors) {
       const el = document.querySelector(sel);
-      if (!el) continue;
-      let txt = '';
-      if (el.getAttribute) {
-        txt = el.getAttribute('content') || el.getAttribute('value') || el.textContent || '';
-      } else {
-        txt = el.textContent || '';
-      }
-      txt = (txt || '').trim();
+      const txt = el && el.textContent ? el.textContent.trim() : '';
       if (txt && txt.length > 3) {
         return txt.substring(0, 80);
       }
     }
-    return null;
+    return 'Unknown Comic';
   });
 }
 
@@ -90,20 +63,20 @@ async function scrapeComic(url) {
   const baseUrl = getBaseUrl(url);
   console.log(`[scrape] Starting scrape of ${url} (comic ID: ${comicId})`);
   console.log('[scrape] Base URL:', baseUrl);
+  console.log('[scrape] PROXY_HOST env:', process.env.PROXY_HOST || 'not set');
 
   const args = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
-    '--single-process',
     '--no-zygote',
     '--disable-blink-features=AutomationControlled',
   ];
 
-  if (!executablePath) {
-    console.log('[scrape] No Chrome/Chromium found, using bundled Chromium');
-  } else {
-    console.log('[scrape] Using Chrome at:', executablePath);
+  const proxyHost = process.env.PROXY_HOST;
+  if (proxyHost) {
+    args.push(`--proxy-server=${proxyHost}`);
+    console.log(`[scrape] Using proxy: ${proxyHost}`);
   }
 
   const browser = await puppeteer.launch({
@@ -112,11 +85,16 @@ async function scrapeComic(url) {
     cacheDir: cacheDir,
     args: args,
     ignoreDefaultArgs: ['--enable-automation'],
-    timeout: 30000,
-    slowMo: 0,
   });
 
   const page = await browser.newPage();
+
+  const proxyUsername = process.env.PROXY_USERNAME;
+  const proxyPassword = process.env.PROXY_PASSWORD;
+  if (proxyHost && proxyUsername && proxyPassword) {
+    await page.authenticate({ username: proxyUsername, password: proxyPassword });
+    console.log('[scrape] Proxy authentication configured');
+  }
 
   await page.setViewport({ width: 1920, height: 1080 });
   await page.setUserAgent(
@@ -131,40 +109,32 @@ async function scrapeComic(url) {
   // Step 1: Visit homepage to establish session/cookies
   console.log('[scrape] Visiting homepage to establish session...');
   try {
-    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle2', timeout: 60000 });
-    await page.waitForTimeout(3000);
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
   } catch (e) {
-    console.log('[scrape] Homepage visit timed out, continuing');
+    console.log(`[scrape] Homepage visit error: ${e.message}`);
   }
 
   // Step 2: Navigate to comic detail page
   console.log('[scrape] Loading comic detail page...');
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
   } catch (e) {
-    console.log('[scrape] Detail page goto timed out, continuing anyway');
+    console.log(`[scrape] Detail page goto error: ${e.message}`);
   }
-  await page.waitForTimeout(5000);
+  await new Promise(r => setTimeout(r, 5000));
 
-  const detailUrl = page.url();
+  let detailUrl = url;
+  try {
+    detailUrl = page.url();
+  } catch(e) {}
   console.log('[scrape] Detail page URL:', detailUrl);
 
-  let comicTitle = null;
+  let comicTitle = 'Unknown Comic';
   try {
     comicTitle = await extractTitle(page);
     console.log('[scrape] Page title:', comicTitle);
   } catch (e) {}
-
-  // Fallback: extract from URL slug
-  if (!comicTitle) {
-    const slugMatch = url.match(/\/\d+-(.+?)\.html?/i);
-    if (slugMatch) {
-      comicTitle = slugMatch[1].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    } else {
-      comicTitle = 'Unknown Comic';
-    }
-    console.log('[scrape] Fallback title from URL:', comicTitle);
-  }
 
   // Step 3: Try to find reader link, or construct it
   let readerUrl = `${baseUrl}/reader/${comicId}`;
@@ -181,13 +151,16 @@ async function scrapeComic(url) {
   // Step 4: Load reader page
   console.log('[scrape] Loading reader page...');
   try {
-    await page.goto(readerUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    await page.goto(readerUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   } catch (e) {
-    console.log('[scrape] Reader page goto timed out, continuing anyway');
+    console.log(`[scrape] Reader page goto error: ${e.message}`);
   }
-  await page.waitForTimeout(5000);
+  await new Promise(r => setTimeout(r, 5000));
 
-  const readerPageUrl = page.url();
+  let readerPageUrl = readerUrl;
+  try {
+    readerPageUrl = page.url();
+  } catch(e) {}
   console.log('[scrape] Reader page URL:', readerPageUrl);
 
   const data = await page.evaluate(() => window.__DATA__ || null);
@@ -201,29 +174,11 @@ async function scrapeComic(url) {
   const chapters = [];
   if (data.chapters && Array.isArray(data.chapters)) {
     for (const chapter of data.chapters) {
-      const chapterId = chapter.id || chapter.chapterId || chapter.slug || chapter.slugId;
-      if (!chapterId) {
-        console.log('[scrape] Skipping chapter without ID:', chapter);
-        continue;
-      }
       chapters.push({
-        title: chapter.title?.trim() || `Chapter ${chapterId}`,
-        url: `${baseUrl}/reader/${comicId}/${chapterId}`,
-        chapterId: chapterId,
+        title: chapter.title?.trim() || `Chapter ${chapter.id}`,
+        url: `${baseUrl}/reader/${comicId}/${chapter.id}`,
+        chapterId: chapter.id,
       });
-    }
-  }
-  // If no chapters found from __DATA__, try extracting from page links
-  if (chapters.length === 0) {
-    const pageChapters = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a[href*="/reader/"]'));
-      return links.map(a => ({
-        title: a.textContent?.trim() || '',
-        url: a.href,
-      }));
-    });
-    if (pageChapters.length > 0) {
-      return { comicTitle, chapters: pageChapters };
     }
   }
 
