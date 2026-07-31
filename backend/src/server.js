@@ -1,6 +1,3 @@
-require('dotenv').config();
-require('dotenv').config({ path: '.env.local' });
-
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -13,7 +10,7 @@ const { isAllowedUrl } = require('./config');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// In-memory job storage (sufficient for local use)
+// In-memory job storage (use Redis in production)
 const jobs = new Map();
 
 // Rate limiting
@@ -24,13 +21,14 @@ const MAX_SCRAPE_PER_MINUTE = 5;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Health check
+// Health check - must respond quickly for Render
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
 // Determine which scraper to use based on URL
 function getScraper(url) {
+  // Handle both absolute and relative URLs
   const urlStr = String(url || '');
   console.log(`[server] getScraper for: ${urlStr.substring(0, 80)}`);
   if (urlStr.includes('xoxocomic.com')) {
@@ -41,20 +39,19 @@ function getScraper(url) {
   return { scrapeComic: scrapeComicGeneric, scrapeChapter: scrapeChapterGeneric };
 }
 
-function getAllowedList() {
-  const allowedSites = require('./config').getAllowedSites();
-  return allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
-}
-
 // Start scrape job
 app.post('/api/scrape', async (req, res) => {
   const { url } = req.body;
+
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
+
   if (!isAllowedUrl(url)) {
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
     return res.status(400).json({
-      error: `URL not allowed. Allowed sites: ${getAllowedList()}. Received: ${url}`,
+      error: `URL not allowed. Allowed sites: ${allowedList}. Received: ${url}`,
     });
   }
 
@@ -63,6 +60,7 @@ app.post('/api/scrape', async (req, res) => {
   const now = Date.now();
   const clientAttempts = scrapeAttempts.get(clientKey) || [];
   const recentAttempts = clientAttempts.filter(t => now - t < RATE_LIMIT_WINDOW);
+
   if (recentAttempts.length >= MAX_SCRAPE_PER_MINUTE) {
     return res.status(429).json({
       error: 'Too many requests. Please wait a moment.',
@@ -71,10 +69,14 @@ app.post('/api/scrape', async (req, res) => {
   recentAttempts.push(now);
   scrapeAttempts.set(clientKey, recentAttempts);
 
+  // Create job
   const jobId = Date.now().toString();
   jobs.set(jobId, { status: 'pending', result: null, error: null });
+
+  // Respond immediately with job ID
   res.json({ status: 'pending', jobId });
 
+  // Run scrape in background with appropriate scraper
   try {
     const { scrapeComic } = getScraper(url);
     const result = await scrapeComic(url);
@@ -97,21 +99,27 @@ app.get('/api/scrape/:jobId', (req, res) => {
 // Scrape chapter
 app.post('/api/scrape-chapter', async (req, res) => {
   const { chapterUrl } = req.body;
+
   if (!chapterUrl) {
     return res.status(400).json({ error: 'Chapter URL is required' });
   }
+
   if (!isAllowedUrl(chapterUrl)) {
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
     return res.status(400).json({
-      error: `URL not allowed. Allowed sites: ${getAllowedList()}. Received: ${chapterUrl}`,
+      error: `URL not allowed. Allowed sites: ${allowedList}. Received: ${chapterUrl}`,
     });
   }
 
   const jobId = Date.now().toString();
   jobs.set(jobId, { status: 'pending', result: null, error: null, progress: 0, total: 0 });
+
   res.json({ status: 'pending', jobId });
 
   try {
     const { scrapeChapter } = getScraper(chapterUrl);
+    // Pass progress callback that updates job as images are collected
     const onProgress = (current, total) => {
       const job = jobs.get(jobId);
       if (job) {
@@ -133,6 +141,7 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
+  // If job is done or error, return it and immediately delete to free memory
   const response = { ...job };
   if (job.status === 'done' || job.status === 'error') {
     jobs.delete(req.params.jobId);
@@ -141,31 +150,56 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
   res.json(response);
 });
 
+
+// NEW ENDPOINT: Comic Download GET Check
+app.get('/api/download', async (req, res) => {
+  const handleDownload = require('./api/download').handleDownload; 
+
+  if (!req.body || !req.body.comicUrl) {
+    return res.status(400).json({ error: 'comicUrl is required' });
+  }
+
+  console.log(`[server] Received GET request for /api/download with URL: ${req.body.comicUrl}`);
+  // Delegate to the controller function, which handles validation and returns job status.
+  handleDownload(req, res); 
+});
+
+
 // Full comic download - server-side with disk storage and single browser
 const { ensureDir, sanitizeFileName, cleanupDir, downloadFullComic, TMP_DIR } = require('./download-full');
 
 app.post('/api/download-full', async (req, res) => {
   const { comicUrl } = req.body;
   console.log(`[server] /api/download-full called with comicUrl: ${comicUrl}`);
+
   if (!comicUrl) {
     return res.status(400).json({ error: 'comicUrl is required' });
   }
+
   if (!isAllowedUrl(comicUrl)) {
-    return res.status(400).json({ error: `URL not allowed. Allowed sites: ${getAllowedList()}` });
+    const allowedSites = require('./config').getAllowedSites();
+    const allowedList = allowedSites.length > 0 ? allowedSites.join(', ') : 'none configured';
+    return res.status(400).json({ error: `URL not allowed. Allowed sites: ${allowedList}` });
   }
 
   const jobId = Date.now().toString();
   const jobDir = path.join(TMP_DIR, 'comic-downloads', jobId);
   ensureDir(jobDir);
+
   jobs.set(jobId, { status: 'pending', type: 'download-full', filePath: null, error: null, comicUrl });
   res.json({ status: 'pending', jobId });
 
+  // Run in background
   (async () => {
     try {
+      // Step 1: Scrape comic info using existing scraper (handles session setup)
       jobs.set(jobId, { ...jobs.get(jobId), status: 'scraping-info' });
 
+      // If comicUrl is a chapter URL, try to derive the comic URL
       let targetUrl = comicUrl;
       const urlStr = String(comicUrl || '');
+
+      // Batcave chapter URL: https://batcave.biz/reader/33051/233702 -> comic URL
       const batcaveMatch = urlStr.match(/batcave\.biz\/reader\/(\d+)\/\d+/);
       if (batcaveMatch) {
         const comicId = batcaveMatch[1];
@@ -175,13 +209,16 @@ app.post('/api/download-full', async (req, res) => {
 
       const { scrapeComic } = getScraper(targetUrl);
       const comicInfo = await scrapeComic(targetUrl);
+
       if (!comicInfo.chapters || comicInfo.chapters.length === 0) {
         throw new Error('No chapters found');
       }
 
+      // Step 2: Download all chapters using single browser + disk storage
       const result = await downloadFullComic(targetUrl, jobDir, (phase, current, total, detail) => {
         const job = jobs.get(jobId);
         if (!job) return;
+
         if (phase === 'downloading-chapters') {
           jobs.set(jobId, { ...job, status: 'downloading-chapters', currentChapter: current, totalChapters: total, chapterTitle: detail });
         } else if (phase === 'downloading-images') {
@@ -234,16 +271,21 @@ app.get('/api/download-file/:jobId', (req, res) => {
   if (job.status !== 'done' || !job.filePath) {
     return res.status(400).json({ error: 'File not ready' });
   }
+
   const filePath = job.filePath;
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: 'File no longer available' });
   }
+
   const fileName = job.fileName || 'download.zip';
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.setHeader('Content-Type', 'application/zip');
+
   const stream = fs.createReadStream(filePath);
   stream.pipe(res);
+
   stream.on('close', () => {
+    // Clean up after download
     try {
       const jobDir = path.dirname(filePath);
       cleanupDir(jobDir);
@@ -253,6 +295,7 @@ app.get('/api/download-file/:jobId', (req, res) => {
       console.error('[download-full] Cleanup error:', e.message);
     }
   });
+
   stream.on('error', (err) => {
     console.error('[download-full] Stream error:', err.message);
     res.status(500).json({ error: 'Download failed' });
