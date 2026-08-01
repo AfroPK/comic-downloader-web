@@ -1,0 +1,196 @@
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')();
+puppeteer.use(StealthPlugin);
+
+const path = require('path');
+const fs = require('fs');
+
+function getBaseUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch (e) {
+    return '';
+  }
+}
+
+function findExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const winPaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Users\\' + (process.env.USERNAME || '') + '\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  ];
+  for (const p of winPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  const linuxPaths = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome'];
+  for (const p of linuxPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
+const executablePath = findExecutablePath();
+const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../node_modules/.cache/puppeteer');
+
+async function scrapeChapter(chapterUrl, onProgress) {
+  const baseUrl = getBaseUrl(chapterUrl);
+  console.log('[scrape-chapter] Using Chrome path:', executablePath || 'default Puppeteer path');
+  console.log('[scrape-chapter] Base URL:', baseUrl);
+
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--no-zygote',
+    '--disable-blink-features=AutomationControlled',
+  ];
+
+  if (!executablePath) {
+    console.log('[scrape-chapter] No Chrome/Chromium found, using bundled Chromium');
+  } else {
+    console.log('[scrape-chapter] Using Chrome at:', executablePath);
+  }
+
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    executablePath: executablePath,
+    cacheDir: cacheDir,
+    args: args,
+    ignoreDefaultArgs: ['--enable-automation'],
+    timeout: 30000,
+  });
+
+  const page = await browser.newPage();
+
+  await page.setViewport({ width: 1920, height: 1080 });
+  await page.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+  );
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Referer': `${baseUrl}/`,
+  });
+
+  console.log(`[scrape-chapter] Loading ${chapterUrl}`);
+
+  // Visit homepage first to establish cookies
+  try {
+    await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
+  } catch (e) {
+    console.log(`[scrape-chapter] Homepage visit error: ${e.message}`);
+  }
+
+  // Navigate to chapter
+  try {
+    await page.goto(chapterUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  } catch (e) {
+    console.log(`[scrape-chapter] Chapter page goto error: ${e.message}`);
+  }
+  await new Promise(r => setTimeout(r, 5000));
+
+  // Poll for window.__DATA__ to appear
+  let chapterData = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise(r => setTimeout(r, 2000));
+    chapterData = await page.evaluate(() => window.__DATA__ || null);
+    if (chapterData && Array.isArray(chapterData.images)) {
+      console.log(`[scrape-chapter] window.__DATA__ found after ${attempt + 1} attempts`);
+      break;
+    }
+  }
+
+  let currentPageUrl = chapterUrl;
+  try { currentPageUrl = page.url(); } catch(e) {}
+  console.log('[scrape-chapter] Current page URL:', currentPageUrl);
+  console.log('[scrape-chapter] window.__DATA__:', chapterData ? 'found' : 'not found');
+
+  if (!chapterData || !Array.isArray(chapterData.images)) {
+    await browser.close();
+    throw new Error('No images found for this chapter');
+  }
+
+  console.log(`[scrape-chapter] Found ${chapterData.images.length} images`);
+  console.log('[scrape-chapter] First image URL:', chapterData.images[0]);
+
+  // Report total images
+  if (onProgress) onProgress(0, chapterData.images.length);
+
+  // Collect images by fetching them server-side with proper headers
+  const base64Images = [];
+  const failedImages = [];
+
+  // Get cookies from the page to use for image requests
+  const cookies = await page.cookies();
+  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+  for (let i = 0; i < chapterData.images.length; i++) {
+    const imgUrl = chapterData.images[i];
+    try {
+      let response = null;
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await fetch(imgUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Referer': chapterUrl,
+              'Cookie': cookieHeader,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+            },
+          });
+          if (response.ok) break;
+        } catch (e) {
+          lastErr = e;
+        }
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        }
+      }
+
+      if (!response || !response.ok) {
+        console.error(`[scrape-chapter] Failed to fetch image ${i + 1} after retries: ${lastErr ? lastErr.message : 'HTTP ' + (response ? response.status : 'unknown')}`);
+        failedImages.push(imgUrl);
+        continue;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length < 100) {
+        console.error(`[scrape-chapter] Image ${i + 1} too small`);
+        failedImages.push(imgUrl);
+        continue;
+      }
+
+      const ct = (response.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      const b64 = buffer.toString('base64');
+      base64Images.push(`data:${ct};base64,${b64}`);
+      console.log(`[scrape-chapter] Fetched image ${i + 1}/${chapterData.images.length} (${buffer.length} bytes)`);
+
+      // Report progress after each image
+      if (onProgress) onProgress(base64Images.length, chapterData.images.length);
+    } catch (err) {
+      console.error(`[scrape-chapter] Error fetching image ${i + 1}:`, err.message);
+      failedImages.push(imgUrl);
+    }
+  }
+
+  console.log(`[scrape-chapter] Converted ${base64Images.length}/${chapterData.images.length} images`);
+  if (failedImages.length > 0) {
+    console.log(`[scrape-chapter] Failed images: ${failedImages.length}`);
+  }
+
+  await browser.close();
+  return { images: base64Images };
+}
+
+module.exports = { scrapeChapter };

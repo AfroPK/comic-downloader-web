@@ -1,0 +1,101 @@
+import React, { useState } from 'react';
+import UrlInput from './components/UrlInput';
+import ProgressPanel from './components/ProgressPanel';
+import ChapterList from './components/ChapterList';
+import ProgressBar from './components/ProgressBar';
+import FullDownloadSection from './components/FullDownloadSection';
+import { useScrape } from './hooks/useScrape';
+
+function App() {
+  const {
+    status,
+    comicTitle,
+    chapters,
+    error,
+    progress,
+    downloadingChapterIndex,
+    downloadProgress,
+    fullDownloadProgress,
+    scrape,
+    downloadChapter,
+    downloadFullComic,
+  } = useScrape();
+
+  const [url, setUrl] = useState('');
+
+  const handleScrape = async () => {
+    if (!url.trim()) return;
+    await scrape(url.trim());
+  };
+
+  const isLoading = status === 'scraping' || status === 'downloading-chapter' || status === 'downloading-full';
+  const isDownloadingChapter = status === 'downloading-chapter';
+  const isDownloadingFull = status === 'downloading-full';
+  const hasResults = chapters.length > 0 && comicTitle;
+
+  return (
+    <div className={`app ${isLoading || hasResults ? 'app--active' : ''}`}>
+      <div className="hero-section">
+        <div className="hero-content">
+          <h1 className="search-title">Comic Downloader</h1>
+          <UrlInput
+            url={url}
+            setUrl={setUrl}
+            onScrape={handleScrape}
+            isLoading={status === 'scraping'}
+          />
+        </div>
+      </div>
+
+      <main className="app-main">
+        <div className="content-grid">
+          {status === 'scraping' && (
+            <ProgressPanel progress={progress} />
+          )}
+
+          {isDownloadingChapter && (
+            <div className="info-card" style={{ padding: '1rem', marginTop: '1rem' }}>
+              <ProgressBar 
+                progress={downloadProgress.total ? (downloadProgress.current / downloadProgress.total) * 100 : 0} 
+                label={`Downloading chapter... (${downloadProgress.current}/${downloadProgress.total} images)`} 
+              />
+            </div>
+          )}
+
+          {error && (
+            <div className="info-card">
+              <p style={{ color: '#EF4444' }}>{`Error: ${error}`}</p>
+            </div>
+          )}
+
+          {chapters.length > 0 && comicTitle && (
+            <>
+              <div className="info-card">
+                <h2>{comicTitle}</h2>
+                <p>{chapters.length} chapters found</p>
+              </div>
+
+              <ChapterList
+                chapters={chapters}
+                onDownloadChapter={downloadChapter}
+                isDownloading={isDownloadingChapter}
+                downloadingChapterIndex={downloadingChapterIndex}
+                downloadProgress={downloadProgress}
+              />
+
+              <FullDownloadSection
+                comicTitle={comicTitle}
+                chapters={chapters}
+                onDownloadFull={downloadFullComic}
+                isDownloading={isDownloadingFull}
+                fullDownloadProgress={fullDownloadProgress}
+              />
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default App;
