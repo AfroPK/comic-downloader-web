@@ -151,15 +151,17 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
 });
 
 
-// NEW ENDPOINT: Comic Download GET Check
-app.get('/api/download', async (req, res) => {
+// Comic download check — POST with JSON body (parsed by express.json).
+// Was `GET` reading `req.body`, which is impossible on a GET (always 400).
+// Converged to POST to match /api/scrape-chapter and /api/download-full.
+app.post('/api/download', async (req, res) => {
   const handleDownload = require('./api/download').handleDownload; 
 
   if (!req.body || !req.body.comicUrl) {
     return res.status(400).json({ error: 'comicUrl is required' });
   }
 
-  console.log(`[server] Received GET request for /api/download with URL: ${req.body.comicUrl}`);
+  console.log(`[server] Received POST request for /api/download with URL: ${req.body.comicUrl}`);
   // Delegate to the controller function, which handles validation and returns job status.
   handleDownload(req, res); 
 });
