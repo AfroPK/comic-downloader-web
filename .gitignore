@@ -39,9 +39,10 @@ Thumbs.db
 backend/debug-page.png
 
 # AI Workflow Guardrails (Titus style)
+# Guardrail DOCS stay local (not shipped); CI config under .github/ intentionally
+# SHIPS so GitHub Actions runs as the automated gate.
 AGENTS.md
 SPEC.md
 ROADMAP.md
 TASKS.md
-.github/
 

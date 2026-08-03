@@ -1,0 +1,38 @@
+name: CI Scaffolding & Verification
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Node >=22 required: the backend's `npm test` uses node:test with a
+          # glob pattern (test/**/*.test.js), which Node 20 does not expand.
+          node-version: '22'
+
+      - name: Verify Backend Syntax
+        run: |
+          cd backend
+          node -c src/server.js
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm test
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
