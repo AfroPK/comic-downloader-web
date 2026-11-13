@@ -1,61 +1,67 @@
+function issueNumber(title, fallbackIndex) {
+  const hash = /#\s*(\d+)/.exec(title || '');
+  if (hash) return hash[1].replace(/^0+(?=\d)/, '');
+  return String(fallbackIndex + 1);
+}
+
 function ChapterList({ chapters, onDownloadChapter, isDownloading, downloadingChapterIndex, downloadProgress }) {
   return (
-    <div className="info-card">
-      <h2>Chapters</h2>
+    <>
+      <div className="chapter-toolbar">
+        <span className="chapter-toolbar__title">Issues</span>
+        <span className="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3v12M7 10l5 5 5-5" /><path d="M5 21h14" />
+          </svg>
+          Click a card to save a .cbz
+        </span>
+      </div>
       <div className="chapter-list">
         {chapters.map((chapter, index) => {
-          const isThisChapterDownloading = downloadingChapterIndex === index;
-          
+          const active = downloadingChapterIndex === index;
+          const pct = downloadProgress.total ? (downloadProgress.current / downloadProgress.total) * 100 : 0;
+          const meta = chapter.images && chapter.images.length > 0
+            ? `${chapter.images.length} images`
+            : 'Ready to download';
+
           return (
-            <div className="chapter-item" key={index}>
+            <div className={`chapter-item ${active ? 'is-active' : ''}`} key={index}>
               <div className="chapter-info">
-                <span>{chapter.title || `Chapter ${index + 1}`}</span>
-                <span>
-                  {chapter.images && chapter.images.length > 0
-                    ? `${chapter.images.length} images`
-                    : 'Ready to download'}
-                </span>
-                {chapter.error && (
-                  <span style={{ color: '#ff5252' }}> — {chapter.error}</span>
-                )}
+                <span className="issue-badge">#{issueNumber(chapter.title, index)}</span>
+                <div className="chapter-info__text">
+                  <span className="chapter-info__title" title={chapter.title || `Chapter ${index + 1}`}>
+                    {chapter.title || `Chapter ${index + 1}`}
+                  </span>
+                  <span className="chapter-info__meta" style={chapter.error ? { color: 'var(--err)' } : undefined}>
+                    {chapter.error ? chapter.error : meta}
+                  </span>
+                </div>
               </div>
               <button
                 className="btn btn-success"
                 onClick={() => onDownloadChapter(chapter.url, chapter.title, index)}
                 disabled={isDownloading}
-                style={isThisChapterDownloading ? { position: 'relative', overflow: 'hidden', minWidth: '80px' } : {}}
+                aria-label={`Download ${chapter.title || 'chapter'} as CBZ`}
               >
-                {isThisChapterDownloading ? (
+                {active ? (
                   <>
-                    <span style={{ position: 'relative', zIndex: 1 }}>
-                      {downloadProgress.total > 0
-                        ? `${Math.round((downloadProgress.current / downloadProgress.total) * 100)}%`
-                        : '...'}
-                    </span>
-                    {downloadProgress.total > 0 && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: `${(downloadProgress.current / downloadProgress.total) * 100}%`,
-                          backgroundColor: 'rgba(255,255,255,0.35)',
-                          transition: 'width 0.3s ease',
-                          zIndex: 0,
-                        }}
-                      />
-                    )}
+                    <span className="btn__fill" style={{ width: `${pct}%` }} />
+                    <span className="btn__label">{downloadProgress.total ? `${Math.round(pct)}%` : '…'}</span>
                   </>
                 ) : (
-                  'CBZ'
+                  <>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3v12M7 10l5 5 5-5" /><path d="M5 21h14" />
+                    </svg>
+                    CBZ
+                  </>
                 )}
               </button>
             </div>
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 

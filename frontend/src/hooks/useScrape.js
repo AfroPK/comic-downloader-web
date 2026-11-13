@@ -1,9 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+
+// Poll fetches must never hit the HTTP cache: the server returns JSON with an
+// ETag, and a cached "pending" body would make the poller miss the real
+// "done" transition.
+const NO_STORE = { cache: 'no-store' };
 
 function dataUrlToBlob(dataUrl) {
   const [header, base64] = dataUrl.split(',');
@@ -20,148 +25,96 @@ function sanitizeFileName(str) {
   return str.replace(/[^a-zA-Z0-9#]/g, '');
 }
 
+// Re-encode a page to JPEG. Pages from these sites are often served as WebP,
+// which many CBZ readers can't display — the archive then looks "empty". JPEG
+// opens everywhere. Falls back to the original bytes if conversion fails.
+async function toJpegBlob(blob) {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0);
+    if (bmp.close) bmp.close();
+    const out = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+    return out || blob;
+  } catch (e) {
+    return blob;
+  }
+}
+
+function extForBlob(blob) {
+  const t = (blob.type || '').split('/')[1] || 'jpg';
+  return t === 'jpeg' ? 'jpg' : t;
+}
+
 async function createCbzBlob(images) {
   const zip = new JSZip();
   for (let i = 0; i < images.length; i++) {
-    const imgDataUrl = images[i];
-    const blob = dataUrlToBlob(imgDataUrl);
-    const ext = blob.type.split('/')[1] || 'jpg';
-    zip.file(`page_${String(i + 1).padStart(3, '0')}.${ext}`, blob);
+    const blob = await toJpegBlob(dataUrlToBlob(images[i]));
+    zip.file(`page_${String(i + 1).padStart(3, '0')}.${extForBlob(blob)}`, blob);
   }
   return zip.generateAsync({ type: 'blob' });
 }
 
-/**
- * Establishes and manages an EventSource connection for real-time progress updates.
- * @param {string} url The base URL to connect to (e.g., /api/download).
- * @param {number} jobId The job ID to track.
- * @param {(progress: number, total: number) => void} onProgress Callback function for progress updates.
- * @returns {{cleanup: () => void}} Object containing a cleanup function to close the stream.
- */
-function connectProgressStream(url, jobId, onProgress) {
-  const eventSource = new EventSource(`${url}?jobId=${jobId}`);
+// Single-poller status poller.
+//
+// Previously this opened an EventSource at a non-existent SSE endpoint AND ran
+// a redundant "initial check" fetch in addition to the interval poll — three
+// concurrent readers of a delete-after-fetch job. When the large result body was
+// still streaming, a concurrent poll hit the already-deleted job (404, no
+// `status` field) and rejected the whole download before it could resolve.
+// One in-flight-guarded poller removes that race.
+function pollJob(jobId, endpoint, onProgressCallback, intervalMs = 2000) {
+  return new Promise((resolve, reject) => {
+    let inFlight = false;
+    let settled = false;
+    let timer;
 
-  eventSource.onmessage = (event) => {
-    try {
-      // Assuming 'message' event carries JSON payload like: { progress: 50, total: 100 }
-      const data = JSON.parse(event.data);
-      if (typeof data.progress === 'number' && typeof data.total === 'number') {
-        onProgress(data.progress, data.total);
-      } else {
-         console.warn("Received message event without valid progress payload:", data);
-      }
-    } catch (e) {
-      console.error("Error parsing EventSource message:", e);
-    }
-  };
+    const stop = () => {
+      settled = true;
+      if (timer) clearInterval(timer);
+    };
 
-  eventSource.onerror = (err) => {
-    console.error("EventSource failed to connect or stream:", err);
-  };
+    const tick = async () => {
+      if (inFlight || settled) return; // don't overlap requests
+      inFlight = true;
+      try {
+        const res = await fetch(`${API_BASE}${endpoint}/${jobId}`, NO_STORE);
+        const data = await res.json();
+        if (settled) return;
 
-  const cleanup = () => {
-    if (eventSource) {
-        eventSource.close();
-    }
-  };
-
-  return { cleanup };
-}
-
-
-/**
- * Polls a job status, prioritizing EventSource streaming for progress updates.
- * @param {string} jobId The ID of the running job.
- * @param {string} endpoint The API endpoint (e.g., /scrape).
- * @param {(progress: number, total: number) => void} onProgressCallback Callback function to update progress state.
- * @returns {Promise<any>} A promise that resolves with the final job result.
- */
-async function pollJob(jobId, endpoint, onProgressCallback) {
-    return new Promise((resolve, reject) => {
-        let interval;
-
-        // Determine if EventSource streaming is likely intended for this endpoint (e.g., download processes)
-        const useStreaming = endpoint === 'scrape-chapter' || endpoint === 'download'; 
-
-        if (useStreaming) {
-            const eventStreamUrl = `${API_BASE}${endpoint}`;
-            // 1. Set up EventSource for continuous progress updates
-            const { cleanup } = connectProgressStream(eventStreamUrl, jobId, onProgressCallback);
-            
-            let resolveCalled = false;
-
-            interval = setInterval(() => {
-                if (resolveCalled) return;
-
-                fetch(`${API_BASE}${endpoint}/${jobId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (!data.status) return reject(new Error("Unknown API status response"));
-                        
-                        if (data.status === 'done') {
-                            clearInterval(interval);
-                            cleanup();
-                            resolve(data.result || data); // Resolve with result or full data object
-                        } else if (data.status === 'error') {
-                            clearInterval(interval);
-                            cleanup();
-                            reject(new Error(data.error || 'Job failed during polling check'));
-                        } else {
-                            // Progress is handled by EventSource, but we still need to poll for status checks
-                            if (onProgressCallback && data.progress !== undefined && data.total > 0) {
-                                onProgressCallback(data.progress, data.total);
-                            }
-                        }
-                    })
-                    .catch(err => {
-                        clearInterval(interval);
-                        cleanup();
-                        reject(err);
-                    });
-            }, 2000);
-
-            // Initial check to start the process chain
-            fetch(`${API_BASE}${endpoint}/${jobId}`)
-                .then(res => res.json())
-                .then(data => {
-                     if (data.status === 'done') return data; // Handle immediate completion
-                })
-                .catch(() => {});
-
-
-        } else {
-            // Fallback Polling for initial scrape job, keeping original logic structure
-             interval = setInterval(() => {
-                fetch(`${API_BASE}${endpoint}/${jobId}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === 'done') {
-                            clearInterval(interval);
-                            resolve(data.result);
-                        } else if (data.status === 'error') {
-                            clearInterval(interval);
-                            reject(new Error(data.error));
-                        } else {
-                            // Report progress while polling
-                            if (onProgressCallback && data.progress !== undefined && data.total > 0) {
-                                onProgressCallback(data.progress, data.total);
-                            }
-                        }
-                    })
-                    .catch(() => {});
-            }, 2000); // Original poll interval
-
-            // Initial check for fallback polling
-             fetch(`${API_BASE}${endpoint}/${jobId}`)
-                .then(res => res.json())
-                .then(data => {
-                     if (data.status === 'done') return data;
-                })
-                .catch(() => {});
+        if (data.status === 'done') {
+          stop();
+          resolve(data.result || data);
+        } else if (data.status === 'error') {
+          stop();
+          reject(new Error(data.error || 'Job failed'));
+        } else if (!data.status) {
+          // Job is gone before we captured a result (expired/cleaned up).
+          stop();
+          reject(new Error('Job no longer available. Please try again.'));
+        } else if (onProgressCallback && data.total > 0) {
+          onProgressCallback(data.progress, data.total);
         }
-    });
-}
+      } catch (err) {
+        if (!settled) {
+          stop();
+          reject(err);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
 
+    // Kick off immediately, then on interval.
+    tick();
+    timer = setInterval(tick, intervalMs);
+  });
+}
 
 function useScrape() {
   const [status, setStatus] = useState('idle');
@@ -174,14 +127,6 @@ function useScrape() {
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 });
   const [fullDownloadProgress, setFullDownloadProgress] = useState({ chapterIndex: 0, totalChapters: 0, imageCurrent: 0, imageTotal: 0 });
 
-  // Cleanup logic for state management (optional but good practice)
-  useEffect(() => {
-    return () => {
-        console.log("useScrape hook cleanup initiated.");
-    };
-  }, []);
-
-
   const scrape = useCallback(async (url) => {
     setStatus('scraping');
     setError('');
@@ -193,7 +138,6 @@ function useScrape() {
     let progressInterval;
 
     try {
-      // Temporary visual progress update interval
       progressInterval = setInterval(() => {
         setProgress(prev => (Math.min(95, prev + Math.random() * 15)));
       }, 500);
@@ -202,19 +146,19 @@ function useScrape() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+        ...NO_STORE,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Scraping failed');
       }
 
       const { jobId } = await response.json();
-      
-      // Use the refactored pollJob/progress logic (which now handles progress updates)
-      const result = await pollJob(jobId, '/scrape', (current, total) => {
-          setProgress(Math.max(10, current)); // Update local state with streamed value
-        });
+
+      const result = await pollJob(jobId, '/scrape', (current) => {
+        setProgress(Math.max(10, current));
+      }, 1500);
 
       clearInterval(progressInterval);
       setComicTitle(result.comicTitle);
@@ -239,14 +183,16 @@ function useScrape() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chapterUrl }),
+        ...NO_STORE,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to start chapter download');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to start chapter download');
       }
 
       const { jobId } = await response.json();
-      // Use EventSource for progress tracking in chapter download, passing callback handler
+
       const result = await pollJob(jobId, '/scrape-chapter', (current, total) => {
         setDownloadProgress({ current, total });
       });
@@ -255,11 +201,7 @@ function useScrape() {
         throw new Error('No images received for this chapter');
       }
 
-
       const content = await createCbzBlob(result.images);
-
-
-      // Build filename: Chapter title only, stripping all non-alphanumeric chars (keep #)
       const fileName = `${sanitizeFileName(chapterTitle || ('Chapter ' + (index + 1)))}.cbz`;
       saveAs(content, fileName);
 
@@ -286,6 +228,7 @@ function useScrape() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comicUrl }),
+        ...NO_STORE,
       });
 
       if (!startRes.ok) {
@@ -295,11 +238,10 @@ function useScrape() {
 
       const { jobId } = await startRes.json();
 
-      // Poll for status using the original 3-second interval wait, as it is a disk-based process.
       let fileName = '';
       while (true) {
         await new Promise(r => setTimeout(r, 3000));
-        const statusRes = await fetch(`${API_BASE}/download-full/${jobId}`);
+        const statusRes = await fetch(`${API_BASE}/download-full/${jobId}`, NO_STORE);
         const data = await statusRes.json();
 
         if (data.status === 'error') {
@@ -311,7 +253,6 @@ function useScrape() {
           break;
         }
 
-        // Update progress
         if (data.totalChapters > 0) {
           setFullDownloadProgress({
             chapterIndex: (data.currentChapter || 0) - 1,
@@ -323,7 +264,6 @@ function useScrape() {
         }
       }
 
-      // Trigger file download (DOM manipulation is fine here)
       const downloadUrl = `${API_BASE}/download-file/${jobId}`;
       const link = document.createElement('a');
       link.href = downloadUrl;
