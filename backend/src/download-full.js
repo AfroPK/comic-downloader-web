@@ -161,31 +161,51 @@ async function extractChapterImageUrls(page, chapterUrl, isXoxo) {
   }
 }
 
-// Download images via browser context fetch to preserve cookies, TLS, and referer (bypassing 403 Forbidden)
+// Download images via browser context fetch (preserves cookies/TLS/referer to
+// bypass 403) and re-encode each to JPEG. Source pages are often WebP, which
+// many CBZ readers can't display (the archive looks "empty"); JPEG opens
+// everywhere. Falls back to the raw bytes if the browser can't convert.
 async function downloadImagesToDisk(page, imageUrls, outputDir, referer, onProgress) {
   ensureDir(outputDir);
   const downloaded = [];
   for (let i = 0; i < imageUrls.length; i++) {
     const imgUrl = imageUrls[i];
     try {
-      // Execute fetch inside the browser page context so session, cookies, and headers are authentic
-      const byteArray = await page.evaluate(async (url) => {
+      const result = await page.evaluate(async (url) => {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const buf = await res.arrayBuffer();
-        return Array.from(new Uint8Array(buf));
+        const blob = await res.blob();
+        try {
+          const bmp = await createImageBitmap(blob);
+          const canvas = document.createElement('canvas');
+          canvas.width = bmp.width;
+          canvas.height = bmp.height;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(bmp, 0, 0);
+          if (bmp.close) bmp.close();
+          return { kind: 'jpeg', data: canvas.toDataURL('image/jpeg', 0.92).split(',')[1] };
+        } catch (e) {
+          return { kind: 'raw', data: Array.from(new Uint8Array(await blob.arrayBuffer())), mime: blob.type || '' };
+        }
       }, imgUrl);
 
-      const buffer = Buffer.from(byteArray);
+      let buffer, ext;
+      if (result.kind === 'jpeg') {
+        buffer = Buffer.from(result.data, 'base64');
+        ext = 'jpg';
+      } else {
+        buffer = Buffer.from(result.data);
+        ext = /png/.test(result.mime) ? 'png'
+            : /avif/.test(result.mime) ? 'avif'
+            : /webp/.test(result.mime) ? 'webp' : 'jpg';
+      }
+
       if (buffer.length < 100) {
         console.error(`[download-full] Image ${i + 1} too small (${buffer.length} bytes)`);
         continue;
       }
-
-      let ext = 'jpg';
-      if (imgUrl.includes('.png')) ext = 'png';
-      else if (imgUrl.includes('.webp')) ext = 'webp';
-      else if (imgUrl.includes('.avif')) ext = 'avif';
 
       const fileName = `page_${String(i + 1).padStart(3, '0')}.${ext}`;
       const filePath = path.join(outputDir, fileName);
@@ -193,7 +213,7 @@ async function downloadImagesToDisk(page, imageUrls, outputDir, referer, onProgr
       downloaded.push(filePath);
 
       if (onProgress) onProgress(i + 1, imageUrls.length);
-      console.log(`[download-full] Downloaded image ${i + 1}/${imageUrls.length} (${buffer.length} bytes) via browser context`);
+      console.log(`[download-full] Saved image ${i + 1}/${imageUrls.length} (${buffer.length} bytes, ${ext})`);
     } catch (err) {
       console.error(`[download-full] Error fetching image ${i + 1} (${imgUrl}):`, err.message);
     }

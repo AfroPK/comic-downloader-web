@@ -1,0 +1,23 @@
+name: comic-downloader-web
+
+services:
+  backend:
+    build: ./backend
+    image: comic-downloader-web-backend:latest
+    container_name: comic-downloader-backend
+    restart: always
+    environment:
+      PORT: "3000"
+      TARGET_SITES: "https://batcave.biz,https://xoxocomic.com"
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./frontend
+    image: comic-downloader-web-frontend:latest
+    container_name: comic-downloader-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"

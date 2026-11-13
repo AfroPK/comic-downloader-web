@@ -1,46 +1,53 @@
 function FullDownloadSection({ comicTitle, chapters, onDownloadFull, isDownloading, fullDownloadProgress }) {
-  const { chapterIndex, totalChapters, imageCurrent, imageTotal } = fullDownloadProgress || {};
-  const hasProgress = totalChapters > 0;
-  const chapterPct = hasProgress && imageTotal > 0
-    ? Math.round((imageCurrent / imageTotal) * 100)
+  const { chapterIndex = 0, totalChapters = 0, imageCurrent = 0, imageTotal = 0, chapterTitle } = fullDownloadProgress || {};
+  const hasProgress = totalChapters > 0 && isDownloading;
+  const chapterPct = hasProgress && imageTotal > 0 ? Math.round((imageCurrent / imageTotal) * 100) : 0;
+  const overallPct = hasProgress && totalChapters > 0
+    ? Math.min(100, Math.round(((chapterIndex - 1 + (imageTotal ? imageCurrent / imageTotal : 0)) / totalChapters) * 100))
     : 0;
 
   return (
-    <div className="info-card full-download-section">
-      <h2>Download All Chapters</h2>
-      <p>{chapters.length} chapters</p>
+    <div className="card full-download">
+      <h2>Get the whole series</h2>
+      <p>
+        Bundle all <b>{chapters.length}</b> issues into a single archive — server-side, no per-click babysitting.
+      </p>
       <button
-        className="btn btn-warning"
+        className="btn btn-primary"
         onClick={onDownloadFull}
         disabled={isDownloading}
-        style={isDownloading ? { position: 'relative', overflow: 'hidden', minWidth: '140px' } : { marginTop: '0.75rem' }}
       >
         {isDownloading ? (
           <>
-            <span style={{ position: 'relative', zIndex: 1 }}>
+            <span className="btn__fill" style={{ width: `${hasProgress ? overallPct : 0}%` }} />
+            <span className="btn__label">
               {hasProgress
-                ? `Ch ${chapterIndex + 1}/${totalChapters} - ${chapterPct}%`
-                : 'Starting...'}
+                ? `Ch ${chapterIndex}/${totalChapters} · ${chapterPct}%`
+                : <>Starting…</>}
             </span>
-            {hasProgress && imageTotal > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: `${chapterPct}%`,
-                  backgroundColor: 'rgba(255,255,255,0.35)',
-                  transition: 'width 0.3s ease',
-                  zIndex: 0,
-                }}
-              />
-            )}
           </>
         ) : (
-          'Download'
+          <>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 21h16" />
+            </svg>
+            Download all {chapters.length} issues
+          </>
         )}
       </button>
+      {hasProgress && (
+        <div style={{ maxWidth: 420, margin: '1.25rem auto 0', textAlign: 'left' }}>
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${overallPct}%` }} />
+          </div>
+          <div className="progress-meta">
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+              {chapterTitle || 'Working…'}
+            </span>
+            <span className="pct">{overallPct}%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

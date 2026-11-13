@@ -141,11 +141,19 @@ app.get('/api/scrape-chapter/:jobId', (req, res) => {
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
-  // If job is done or error, return it and immediately delete to free memory
+  // Return the job and schedule a short-lived cleanup INSTEAD of deleting on the
+  // first fetch. Deleting immediately caused a fatal race: the large result body
+  // (base64 images, up to ~144MB) was still streaming to the client while the
+  // client's next 2s poll hit the now-404 job and rejected the whole download.
+  // Keeping it briefly lets concurrent/retried polls succeed; the client stops
+  // polling once it resolves. Freed after 60s to bound memory.
   const response = { ...job };
-  if (job.status === 'done' || job.status === 'error') {
-    jobs.delete(req.params.jobId);
-    console.log(`[server] Deleted job ${req.params.jobId} after fetch, freed ${job.result?.images?.length || 0} images`);
+  if ((job.status === 'done' || job.status === 'error') && !job.expirySet) {
+    jobs.set(req.params.jobId, { ...job, expirySet: true });
+    setTimeout(() => {
+      jobs.delete(req.params.jobId);
+      console.log(`[server] Expired job ${req.params.jobId} after 60s, freed ${job.result?.images?.length || 0} images`);
+    }, 60000);
   }
   res.json(response);
 });

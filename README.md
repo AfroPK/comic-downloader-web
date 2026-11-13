@@ -51,6 +51,22 @@ This automatically spins up the Express backend server (`http://localhost:3000`)
 
 ---
 
+## 🧪 Development & Testing
+
+The backend ships with a unit-test harness built on Node's built-in test runner (`node:test`) — no extra dependencies.
+
+```bash
+# from the backend/ directory, run the test suite
+cd backend
+npm test
+```
+
+- Tests live in `backend/test/*.test.js`.
+- CI (GitHub Actions, `.github/workflows/ci.yml`) runs `node -c` syntax checks, `npm test`, and a frontend production build on every push and PR.
+- **Requires Node.js ≥ 22** for the test runner's glob support.
+
+---
+
 ### Step 3: Open the Web Interface & Paste URL
 1. Open your web browser and go to:
    ```text

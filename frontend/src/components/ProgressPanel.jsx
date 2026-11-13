@@ -90,7 +90,7 @@ function getRandomIndex(length, current) {
 }
 
 function ProgressPanel({ progress }) {
-  const roundedProgress = Math.round(progress);
+  const rounded = Math.round(progress);
   const [index, setIndex] = useState(() => Math.floor(Math.random() * ONE_LINERS.length));
 
   useEffect(() => {
@@ -105,12 +105,16 @@ function ProgressPanel({ progress }) {
   ));
 
   return (
-    <div className="info-card progress-panel">
+    <div className="card info-card progress-panel">
+      <div className="progress-panel__label">Scraping &middot; please wait</div>
       <p className="one-liner">{waveText}</p>
-      <div className="progress-bar">
-        <div style={{ width: `${roundedProgress}%` }} className="progress-fill" />
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${rounded}%` }} />
       </div>
-      <p className="progress-percent">{roundedProgress}%</p>
+      <div className="progress-meta">
+        <span>Finding issues…</span>
+        <span className="pct">{rounded}%</span>
+      </div>
     </div>
   );
 }
