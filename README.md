@@ -1,101 +1,60 @@
-# Comic Downloader Web
+<p align="center">
+  <img src=".github/assets/header.png" alt="Comic Downloader: comics · clean cbz" width="100%">
+</p>
 
-> A local-only web application for downloading comics as clean CBZ archives.
+<p align="center">
+  <img src="https://img.shields.io/badge/%7B%20tool%20%7D-D6246E?style=for-the-badge&labelColor=0B0608" alt="{ tool }">
+  <img src="https://img.shields.io/badge/node.js-0B0608?style=for-the-badge&labelColor=0B0608" alt="node.js">
+  <img src="https://img.shields.io/badge/react%20%2B%20vite-0B0608?style=for-the-badge&labelColor=0B0608" alt="react + vite">
+  <img src="https://img.shields.io/badge/status-working-D6246E?style=for-the-badge&labelColor=0B0608" alt="status: working">
+</p>
 
-![Comic Downloader Banner](screenshots/banner.png)
+<p><img src=".github/assets/section-about.png" alt="01 About" width="100%"></p>
 
----
+**`{ comic-downloader-web }`**: a local-only web app that saves comics as clean CBZ archives.
 
-## 🛑 Prerequisites
+You paste a comic URL, it reads the chapters, and you download one chapter or the whole comic. Everything runs on your machine: Express backend, React frontend, Puppeteer for the page work. No account, no cloud, no uploads.
 
-Before running Comic Downloader Web, ensure you have the following installed on your system:
+> [!NOTE]
+> Sites must be allowed by hand in `backend/.env` — nothing is allowed by default. Only `batcave` is fully supported right now.
 
-1. **Node.js (v18 or higher)** and npm.
-2. **Google Chrome, Microsoft Edge, or Brave Browser** installed (required for Puppeteer headless browser scraping and anti-bot evasion).
-3. **Site Support**: Currently, **`batcave`** is the only fully supported site that works at the moment.
+<p><img src=".github/assets/section-features.png" alt="02 Features" width="100%"></p>
 
----
+| | Feature | What it does |
+|---|---|---|
+| 📚 | **Chapter picker** | Loads the chapter list and metadata, then downloads only what you tick. |
+| 🗜️ | **Clean CBZ** | Saves chapters as `.cbz` archives, or the full comic as one master `.zip` with a summary report. |
+| 🔒 | **Local only** | Runs on `localhost`, keeps no data anywhere else. |
+| 🧪 | **Tested backend** | Node's built-in test runner, plus CI on every push. |
 
-## 📖 Step-by-Step Guide: How to Download Comics
+<p><img src=".github/assets/section-setup.png" alt="03 Setup" width="100%"></p>
 
-Follow these exact steps to configure, run, and use Comic Downloader Web.
-
----
-
-### Step 1: Configure Allowed Target Sites
-Before downloading any comic, you must explicitly allow the domain in your environment settings for security.
-
-1. Navigate to your project folder and open `backend/.env` in any text editor.
-2. Set the `TARGET_SITES` variable to include your target comic website domain(s) (comma-separated, no spaces).
-
-```env
-PORT=3000
-TARGET_SITES=https://example-comic-site.com
-```
-
-> **Important:** No websites are allowed by default. If you try to download a URL not listed in `TARGET_SITES`, the app will return a `URL not allowed` error.
-
----
-
-### Step 2: Start the Backend & Frontend
-Launch the application locally on your machine.
-
-- **Windows:**
-  - Double-click `setup.bat` (first time only to install dependencies).
-  - Double-click `run.bat` to start the app.
-- **Linux / Mac:**
-  - Run `./setup.sh` (first time only).
-  - Run `./run.sh` to start the app.
-
-This automatically spins up the Express backend server (`http://localhost:3000`) and the Vite React frontend (`http://localhost:5173`).
-
----
-
-## 🧪 Development & Testing
-
-The backend ships with a unit-test harness built on Node's built-in test runner (`node:test`) — no extra dependencies.
+**Needs:** Node.js 18+ · Chrome, Edge or Brave installed · git
 
 ```bash
-# from the backend/ directory, run the test suite
-cd backend
-npm test
+git clone https://github.com/AfroPK/comic-downloader-web.git
+cd comic-downloader-web
+# Windows
+setup.bat
+# Linux / Mac
+./setup.sh
 ```
 
-- Tests live in `backend/test/*.test.js`.
-- CI (GitHub Actions, `.github/workflows/ci.yml`) runs `node -c` syntax checks, `npm test`, and a frontend production build on every push and PR.
-- **Requires Node.js ≥ 22** for the test runner's glob support.
+1. Open `backend/.env` and set `TARGET_SITES` to the domain(s) you want, comma-separated, no spaces.
+2. Start the app: `run.bat` on Windows, `./run.sh` on Linux/Mac.
+3. Backend runs on `http://localhost:3000`, frontend on `http://localhost:5173`.
 
----
+<p><img src=".github/assets/section-usage.png" alt="04 Usage" width="100%"></p>
 
-### Step 3: Open the Web Interface & Paste URL
-1. Open your web browser and go to:
-   ```text
-   http://localhost:5173
-   ```
-2. In the input bar at the top, paste the full URL of the comic you wish to download (e.g., `https://example-comic-site.com/comic-name`).
+Open `http://localhost:5173`, paste a comic URL in the top bar and hit **Download**. When the chapters load, tick the ones you want as `.cbz`, or click **Download Full Comic** for one master archive.
 
----
+<p><img src=".github/assets/section-notes.png" alt="05 Notes" width="100%"></p>
 
-### Step 4: Download Chapters or Full Comic
-1. Click the **Download** button.
-2. Wait for the app to extract chapters and metadata.
-3. Once chapters load, select individual chapters to download as `.cbz` files or click **Download Full Comic** to compile everything into a single master `.zip` archive complete with a summary report.
+- "URL not allowed" means the domain is missing from `TARGET_SITES`.
+- "Puppeteer cannot launch" means no supported browser was found — set `PUPPETEER_EXECUTABLE_PATH` in `backend/.env` if yours is in a custom location.
+- For personal use only. Respect the terms of service of the sites you use.
+- MIT licence.
 
----
-
-## ⚙️ Troubleshooting
-
-- **"URL not allowed"** — Add your target site's domain to `TARGET_SITES` in `backend/.env`.
-- **"Puppeteer cannot launch"** — Ensure Google Chrome, Microsoft Edge, or Brave Browser is installed. If installed in a custom location, specify `PUPPETEER_EXECUTABLE_PATH` in `backend/.env`.
-
----
-
-## 📜 Disclaimer
-
-**For personal use and educational purposes only.** Respect the terms of service of any site you access.
-
----
-
-## 🛡️ License
-
-MIT
+<p align="center">
+  <img src=".github/assets/footer.png" alt="play games · make games" width="100%">
+</p>
